@@ -49,7 +49,10 @@ fileprivate extension Grammar {
 
 fileprivate struct Item<Chart : Grammar> : Node {
     
-    typealias Lookup = Chart
+    struct Lookup {
+        let chart : Chart
+        var firsts : [Expr : Set<Character?>]
+    }
     typealias Edge = String
     
     let rule : String?
@@ -57,26 +60,29 @@ fileprivate struct Item<Chart : Grammar> : Node {
     let all : [Expr]
     let lookAheads : Set<Character?>
     let ptr : Int
-    let firsts : [Expr : Set<Character?>]
     
-    func canReach (lookup: inout Chart) -> [String : [Item<Chart>]] {
+    func canReach (lookup: inout Lookup) -> [String : [Item<Chart>]] {
         guard let next = tbd.first, case .nonTerm(let nT) = next else {
             return [:]
         }
         var lookAheads = self.lookAheads
-        if let la = tbd.dropFirst().first.flatMap({firsts[$0]}) {
-            lookAheads = la
+        
+        if let first = tbd.dropFirst().first {
+            if lookup.firsts[first] == nil {
+                lookup.firsts[first] = lookup.chart.first(first)
+            }
+            lookAheads = lookup.firsts[first]!
         }
         
         var values : [Item] = []
         
-        for rule in lookup.rules[nT]?.values ?? [:].values {
+        for rule in lookup.chart.rules[nT]?.values ?? [:].values {
             let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? ExprProperty)?.expr}
             values.append(Item(rule: rule.ruleName,
                                meta: rule.typeName,
                                all: all,
                                lookAheads: lookAheads,
-                               ptr: 0, firsts: firsts))
+                               ptr: 0))
         }
         
         return [nT : values]
@@ -97,7 +103,7 @@ fileprivate struct ItemSet<Chart : Grammar> {
 extension Item {
     
     func tryAdvance(_ expr: Expr) -> Item<Chart>? {
-        tbd.first.flatMap{$0 == expr ? Item(rule: rule, meta: meta, all: all, lookAheads: lookAheads, ptr: ptr + 1, firsts: firsts) : nil}
+        tbd.first.flatMap{$0 == expr ? Item(rule: rule, meta: meta, all: all, lookAheads: lookAheads, ptr: ptr + 1) : nil}
     }
     var tbd : some Collection<Expr> {
         all[ptr...]
@@ -152,9 +158,8 @@ fileprivate struct ItemSetTable<Chart : Grammar, Goal : ASTNode> {
                                         meta: "",
                                         all: [.nonTerm(Goal.typeDescription)],
                                         lookAheads: [nil],
-                                        ptr: 0,
-                                        firsts: Dictionary(uniqueKeysWithValues: chart.allExprs.map{($0, chart.first($0))}))
-        var lookup = ItemSet<Chart>.Lookup(nodeLookup: chart, seedLookup: [:])
+                                        ptr: 0)
+        var lookup = ItemSet<Chart>.Lookup(nodeLookup: .init(chart: chart, firsts: [:]), seedLookup: [:])
         let itemSetGraph = try ClosedGraph(seeds: [augmentedRule], lookup: &lookup.nodeLookup)
         graph = try ClosedGraph(seeds: [ItemSet(graph: itemSetGraph)], lookup: &lookup)
     }
