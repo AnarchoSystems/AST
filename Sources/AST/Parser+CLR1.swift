@@ -7,8 +7,8 @@
 
 // MARK: FIRST
 
-fileprivate extension RuleCollection {
-    static func first(_ expr: Expr) -> Set<Character?> {
+fileprivate extension Grammar {
+    func first(_ expr: Expr) -> Set<Character?> {
         switch expr {
         case .term(let term):
             return [term]
@@ -19,8 +19,8 @@ fileprivate extension RuleCollection {
             while !nTermsToLookAt.isEmpty {
                 var newNTermsToLookAt : Set<String> = []
                 for nT in nTermsToLookAt {
-                    for factory in rules[nT]?.values ?? [:].values {
-                        guard let next = Mirror(reflecting: factory()).children.first(where: {$1 is Injectable || $1 is Terminal})?.value else {
+                    for rule in rules[nT]?.values ?? [:].values {
+                        guard let next = Mirror(reflecting: rule).children.first(where: {$1 is Injectable || $1 is Terminal})?.value else {
                             results.insert(nil)
                             continue
                         }
@@ -47,9 +47,9 @@ fileprivate extension RuleCollection {
 
 // MARK: CLR(1) ITEMS
 
-fileprivate struct Item<Chart : RuleCollection> : Node {
+fileprivate struct Item<Chart : Grammar> : Node {
     
-    typealias Lookup = Void
+    typealias Lookup = Chart
     typealias Edge = String
     
     let rule : String?
@@ -59,7 +59,7 @@ fileprivate struct Item<Chart : RuleCollection> : Node {
     let ptr : Int
     let firsts : [Expr : Set<Character?>]
     
-    func canReach (lookup: inout Void) -> [String : [Item<Chart>]] {
+    func canReach (lookup: inout Chart) -> [String : [Item<Chart>]] {
         guard let next = tbd.first, case .nonTerm(let nT) = next else {
             return [:]
         }
@@ -70,8 +70,7 @@ fileprivate struct Item<Chart : RuleCollection> : Node {
         
         var values : [Item] = []
         
-        for factory in Chart.rules[nT]?.values ?? [:].values {
-            let rule = factory()
+        for rule in lookup.rules[nT]?.values ?? [:].values {
             let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? ExprProperty)?.expr}
             values.append(Item(rule: rule.ruleName,
                                meta: rule.typeName,
@@ -87,7 +86,7 @@ fileprivate struct Item<Chart : RuleCollection> : Node {
 
 // MARK: CLR(1) ITEM SETS
 
-fileprivate struct ItemSet<Chart : RuleCollection> {
+fileprivate struct ItemSet<Chart : Grammar> {
     
     let graph : ClosedGraph<Item<Chart>>
     
@@ -143,18 +142,19 @@ extension ItemSet : Node {
 
 // MARK: CLR(1) GRAPH
 
-fileprivate struct ItemSetTable<Chart : RuleCollection> {
+fileprivate struct ItemSetTable<Chart : Grammar, Goal : ASTNode> {
     
     let graph : ClosedGraph<ItemSet<Chart>>
     
-    init(rules: Chart.Type) throws {
+    init(rules: Chart.Type, goal: Goal.Type) throws {
+        let chart = Chart()
         let augmentedRule = Item<Chart>(rule: nil,
                                         meta: "",
-                                        all: [.nonTerm(Chart.Goal.typeDescription)],
+                                        all: [.nonTerm(Goal.typeDescription)],
                                         lookAheads: [nil],
                                         ptr: 0,
-                                        firsts: Dictionary(uniqueKeysWithValues: Chart.allExprs.map{($0, Chart.first($0))}))
-        var lookup = ItemSet<Chart>.Lookup(nodeLookup: (), seedLookup: [:])
+                                        firsts: Dictionary(uniqueKeysWithValues: chart.allExprs.map{($0, chart.first($0))}))
+        var lookup = ItemSet<Chart>.Lookup(nodeLookup: chart, seedLookup: [:])
         let itemSetGraph = try ClosedGraph(seeds: [augmentedRule], lookup: &lookup.nodeLookup)
         graph = try ClosedGraph(seeds: [ItemSet(graph: itemSetGraph)], lookup: &lookup)
     }
@@ -247,8 +247,8 @@ extension ItemSetTable {
 
 public extension Parser {
     
-    static func CLR1(rules: Chart.Type) throws -> Self {
-        let table = try ItemSetTable(rules: rules)
+    static func CLR1(rules: Chart.Type, goal: Goal.Type) throws -> Self {
+        let table = try ItemSetTable(rules: rules, goal: goal)
         return Parser(actions: try table.actionTable(),
                       gotos: table.gotoTable)
     }

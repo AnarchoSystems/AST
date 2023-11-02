@@ -1,10 +1,11 @@
 import XCTest
-@testable import AST
+import AST
 
 final class ASTTests: XCTestCase {
-    func testExample() throws {
+    
+    func testIdOrInt() throws {
         
-        let parser = try Parser.CLR1(rules: Rules<IntOrIdentifier>.self)
+        let parser = try Parser.CLR1(rules: Rules.self, goal: IntOrIdentifier.self)
         
         let num = 134890024502403
         try XCTAssertEqual(parser.parse("\(num)"), .integer(num))
@@ -15,13 +16,42 @@ final class ASTTests: XCTestCase {
         try XCTAssertEqual(parser.parse(str), .identifier(Identifier(string: str)))
         
     }
+    
+    func testInt() throws {
+        
+        let parser = try Parser.CLR1(rules: Rules.self, goal: Int.self)
+        
+        for num in [124050, 130480, 300950480, 1023840209, 38239840831049804, 190480948] {
+            
+            try XCTAssertEqual(parser.parse("\(num)"), num)
+            
+        }
+        
+    }
+    
+    func testIdentifier() throws {
+        
+        let parser = try Parser.CLR1(rules: Rules.self, goal: Identifier.self)
+        
+        for str in ["a1253ga325346", "efaghlkhgklnalrk", "AFEALFKHafhs", "ohIAEFho2345sfdh"] {
+            try XCTAssertEqual(parser.parse(str), Identifier(string: str))
+        }
+        
+        for str in ["12hai", "2aeugho", "3LHafNA3"] {
+            XCTAssertThrowsError(try parser.parse(str))
+        }
+        
+    }
+    
 }
 
 // MARK: RULES
 
-struct Rules<Goal : ASTNode> : RuleCollection {
+struct Rules : Grammar {
     
-    static var allRules: [Factory] { idOrInt + identifierRecursion + numberRecursion + digitsOrLetters + letter + digit + oneNine }
+    var allRules : [any Rule] { idOrInt + identifierRecursion + numberRecursion + lowerLevel}
+    
+    var lowerLevel : [any Rule] { digitsOrLetters + letter + digit + oneNine }
     
 }
 
@@ -98,7 +128,7 @@ struct OneNine : ASTNode {
 
 extension Rules {
     
-    static var idOrInt : [Factory] { [IdentifierIDOrInt.init, IntIDOrInt.init] }
+    var idOrInt : [any Rule] { [IdentifierIDOrInt(), IntIDOrInt()] }
     
 }
 
@@ -128,7 +158,7 @@ struct IdentifierIDOrInt : Rule {
 
 extension Rules {
     
-    static var identifierRecursion : [Factory] { [LetterIdentifier.init, LetterDigitsOrLettersIsIdentifier.init] }
+    var identifierRecursion : [any Rule] { [LetterIdentifier(), LetterDigitsOrLettersIsIdentifier()] }
     
 }
 
@@ -161,7 +191,7 @@ struct LetterIdentifier : Rule {
 
 extension Rules {
     
-    static var digitsOrLetters : [Factory] {[DigitsOrLettersRecursion.init, DigitIsDigitOrLetter.init, LetterIsDigitOrLetter.init, DigitOrLetterIsDigitsOrLetters.init]}
+    var digitsOrLetters : [any Rule] { [DigitsOrLettersRecursion(), DigitIsDigitOrLetter(), LetterIsDigitOrLetter(), DigitOrLetterIsDigitsOrLetters()] }
     
 }
 
@@ -215,7 +245,7 @@ struct DigitIsDigitOrLetter : Rule {
 
 extension Rules {
     
-    static var numberRecursion : [Factory] { [DigitDigits.init, DigitDigitsDigits.init, NumberRecognizer.init] }
+    var numberRecursion : [any Rule] { [DigitDigits(), DigitDigitsDigits(), NumberRecognizer()] }
     
 }
 
@@ -255,9 +285,9 @@ struct DigitDigits : Rule {
 
 extension Rules {
     
-    static var letter : [Factory] { ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
-                                     "k", "K", "l", "L", "m", "M", "n", "N", "o", "O", "p", "P", "q", "Q", "r", "R", "s", "S", "t", "T", "u", "U", "v", "V",
-                                     "w", "W", "x", "X", "y", "Y", "z", "Z"].map{char in {LetterRecognizer(char: char)}}}
+    var letter : [any Rule] { ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
+                               "k", "K", "l", "L", "m", "M", "n", "N", "o", "O", "p", "P", "q", "Q", "r", "R", "s", "S", "t", "T", "u", "U", "v", "V",
+                               "w", "W", "x", "X", "y", "Y", "z", "Z"].map(LetterRecognizer.init) }
     
 }
 
@@ -279,7 +309,7 @@ struct LetterRecognizer : Rule {
 
 extension Rules {
     
-    static var digit : [Factory] { (0...9).map(String.init).compactMap(\.first).map{char in {DigitRecognizer(char: char)}} as [Factory] }
+    var digit : [any Rule] { (0...9).map(String.init).compactMap(\.first).map(DigitRecognizer.init) }
     
 }
 
@@ -301,7 +331,7 @@ struct DigitRecognizer : Rule {
 
 extension Rules {
     
-    static var oneNine : [Factory] { (1...9).map(String.init).compactMap(\.first).map{char in {OneNineRecognizer(char: char)}} as [Factory] }
+    var oneNine : [any Rule] { (1...9).map(String.init).compactMap(\.first).map(OneNineRecognizer.init) }
     
 }
 

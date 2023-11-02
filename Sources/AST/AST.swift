@@ -5,25 +5,22 @@
 //  Created by Markus Kasperczyk on 31.10.23.
 //
 
-public protocol RuleCollection {
-    associatedtype Goal : ASTNode
-    typealias Factory = () -> any Rule
-    static var allRules : [Factory] {get}
-    static var rules : [String : [String : Factory]] {get}
+public protocol Grammar {
+    var allRules : [any Rule] {get}
+    init()
 }
 
-public extension RuleCollection {
-    static var rules : [String : [String : Factory]] {
-        Dictionary(allRules.map{factory in
-            let rule = factory()
-            return (rule.typeName, [rule.ruleName : factory])
+public extension Grammar {
+    var rules : [String : [String : any Rule]] {
+        Dictionary(allRules.map{rule in
+            return (rule.typeName, [rule.ruleName : rule])
         }) {dict1, dict2 in dict1.merging(dict2) {_, _ in fatalError()}}
     }
-    static var allExprs : Set<Expr> {
+    var allExprs : Set<Expr> {
         var results = Set<Expr>()
         for type in rules.values {
-            for factory in type.values {
-                results.formUnion(Mirror(reflecting: factory()).children.compactMap{($1 as? ExprProperty)?.expr})
+            for rule in type.values {
+                results.formUnion(Mirror(reflecting: rule).children.compactMap{($1 as? ExprProperty)?.expr})
             }
         }
         return results

@@ -71,7 +71,7 @@ extension Character : Codable {
     
 }
 
-public struct Parser<Chart : RuleCollection> : Codable, Equatable {
+public struct Parser<Chart : Grammar, Goal : ASTNode> : Codable, Equatable {
     
     public let actions : [Character? : [Int : Action]]
     public let gotos : [String : [Int : Int]]
@@ -117,6 +117,8 @@ public extension Parser {
     
     func withStack<Out>(_ stream: String, do construction: (any Rule, inout Stack<Out>) throws -> Void) throws ->Stack<Out> {
         
+        let chart = Chart()
+        
         var index = stream.startIndex
         var current = stream.first
         
@@ -145,11 +147,10 @@ public extension Parser {
                 current = stream.indices.contains(index) ? stream[index] : nil
                 
             case .reduce(let rule, let metaType):
-                guard let dict = Chart.rules[metaType],
-                let factory = dict[rule] else {
+                guard let dict = chart.rules[metaType],
+                let ru = dict[rule] else {
                     throw UnknownRule(metaType: metaType, rule: rule)
                 }
-                let ru = factory()
                 for (_, child) in Mirror(reflecting: ru).children {
                     guard nil != child as? ExprProperty else {continue}
                     _ = stateStack.pop()
@@ -169,7 +170,7 @@ public extension Parser {
         return outStack
     }
     
-    func parse(_ stream: String) throws -> Chart.Goal? {
+    func parse(_ stream: String) throws -> Goal? {
         var stack = try withStack(stream) { (rule, stack : inout Stack<any ASTNode>) in
             
             for (_, rhs) in Mirror(reflecting: rule).children.reversed() {
@@ -183,7 +184,7 @@ public extension Parser {
             stack.push(try rule.onRecognize())
             
         }
-        return stack.pop() as? Chart.Goal
+        return stack.pop() as? Goal
     }
     
 }
