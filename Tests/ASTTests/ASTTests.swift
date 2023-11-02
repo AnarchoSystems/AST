@@ -59,6 +59,14 @@ final class ASTTests: XCTestCase {
         
     }
     
+    func testList() throws {
+        
+        let parser = try Parser.CLR1(rules: ListGrammar.self, goal: CommaSeparatedexpressions.self)
+        
+        try XCTAssertEqual(parser.parse("a,b,a")?.exprs.map(\.char), ["a", "b", "a"])
+        
+    }
+    
 }
 
 // MARK: RULES
@@ -363,4 +371,74 @@ struct OneNineRecognizer : Rule {
         try OneNine(char: char)
     }
     
+}
+
+// MARK: List Nodes
+
+struct Expression : ASTNode {
+    let char : Character
+}
+
+struct CommaSeparatedexpressions : ASTNode {
+    var exprs : [Expression]
+}
+
+// MARK: List Rules
+
+struct RecNextIsList : Rule {
+    
+    @NonTerminal
+    var recognized : CommaSeparatedexpressions
+    
+    @Terminal var separator = ","
+    
+    @NonTerminal
+    var next : Expression
+    
+    func onRecognize() throws -> some ASTNode {
+        recognized.exprs.append(next)
+        return recognized
+    }
+    
+}
+
+struct EmptyIsList : Rule {
+    
+    func onRecognize() throws -> some ASTNode {
+        CommaSeparatedexpressions(exprs: [])
+    }
+    
+}
+
+struct ExprIsList : Rule {
+    
+    @NonTerminal
+    var expr : Expression
+    
+    func onRecognize() throws -> some ASTNode {
+        CommaSeparatedexpressions(exprs: [expr])
+    }
+    
+}
+
+struct CharIsExpr : Rule {
+    
+    var ruleName: String {
+        "Char \(char)"
+    }
+    
+    @Terminal var char : Character
+    
+    func onRecognize() throws -> some ASTNode {
+        Expression(char: char)
+    }
+    
+}
+
+// MARK: List Grammar
+
+struct ListGrammar : Grammar {
+    var allRules: [any Rule] {
+        ["a", "b", "c"].map(CharIsExpr.init) + [RecNextIsList(), EmptyIsList(), ExprIsList()]
+    }
 }
