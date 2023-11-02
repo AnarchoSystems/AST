@@ -47,10 +47,10 @@ fileprivate extension Grammar {
 
 // MARK: CLR(1) ITEMS
 
-fileprivate struct Item<Chart : Grammar> : Node {
+fileprivate struct Item<G : Grammar> : Node {
     
     struct Lookup {
-        let chart : Chart
+        let G : G
         var firsts : [Expr : Set<Character?>]
     }
     typealias Edge = String
@@ -61,7 +61,7 @@ fileprivate struct Item<Chart : Grammar> : Node {
     let lookAheads : Set<Character?>
     let ptr : Int
     
-    func canReach (lookup: inout Lookup) -> [String : [Item<Chart>]] {
+    func canReach (lookup: inout Lookup) -> [String : [Item<G>]] {
         guard let next = tbd.first, case .nonTerm(let nT) = next else {
             return [:]
         }
@@ -69,14 +69,14 @@ fileprivate struct Item<Chart : Grammar> : Node {
         
         if let first = tbd.dropFirst().first {
             if lookup.firsts[first] == nil {
-                lookup.firsts[first] = lookup.chart.first(first)
+                lookup.firsts[first] = lookup.G.first(first)
             }
             lookAheads = lookup.firsts[first]!
         }
         
         var values : [Item] = []
         
-        for rule in lookup.chart.rules[nT]?.values ?? [:].values {
+        for rule in lookup.G.rules[nT]?.values ?? [:].values {
             let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? ExprProperty)?.expr}
             values.append(Item(rule: rule.ruleName,
                                meta: rule.typeName,
@@ -92,9 +92,9 @@ fileprivate struct Item<Chart : Grammar> : Node {
 
 // MARK: CLR(1) ITEM SETS
 
-fileprivate struct ItemSet<Chart : Grammar> {
+fileprivate struct ItemSet<G : Grammar> {
     
-    let graph : ClosedGraph<Item<Chart>>
+    let graph : ClosedGraph<Item<G>>
     
 }
 
@@ -102,7 +102,7 @@ fileprivate struct ItemSet<Chart : Grammar> {
 
 extension Item {
     
-    func tryAdvance(_ expr: Expr) -> Item<Chart>? {
+    func tryAdvance(_ expr: Expr) -> Item<G>? {
         tbd.first.flatMap{$0 == expr ? Item(rule: rule, meta: meta, all: all, lookAheads: lookAheads, ptr: ptr + 1) : nil}
     }
     var tbd : some Collection<Expr> {
@@ -114,11 +114,11 @@ extension Item {
 extension ItemSet : Node {
     
     struct Lookup {
-        var nodeLookup : Item<Chart>.Lookup
-        var seedLookup : [[Item<Chart>] : ItemSet<Chart>]
+        var nodeLookup : Item<G>.Lookup
+        var seedLookup : [[Item<G>] : ItemSet<G>]
     }
     
-    func canReach(lookup: inout Lookup) throws -> [Expr : [ItemSet<Chart>]] {
+    func canReach(lookup: inout Lookup) throws -> [Expr : [ItemSet<G>]] {
         let exprs = Set(graph.nodes.compactMap(\.tbd.first))
         let terms = Set(exprs.compactMap{expr -> Character? in
             guard case .term(let t) = expr else {return nil}
@@ -148,18 +148,18 @@ extension ItemSet : Node {
 
 // MARK: CLR(1) GRAPH
 
-fileprivate struct ItemSetTable<Chart : Grammar, Goal : ASTNode> {
+fileprivate struct ItemSetTable<G : Grammar, Goal : ASTNode> {
     
-    let graph : ClosedGraph<ItemSet<Chart>>
+    let graph : ClosedGraph<ItemSet<G>>
     
-    init(rules: Chart.Type, goal: Goal.Type) throws {
-        let chart = Chart()
-        let augmentedRule = Item<Chart>(rule: nil,
+    init(rules: G.Type, goal: Goal.Type) throws {
+        let G = G()
+        let augmentedRule = Item<G>(rule: nil,
                                         meta: "",
                                         all: [.nonTerm(Goal.typeDescription)],
                                         lookAheads: [nil],
                                         ptr: 0)
-        var lookup = ItemSet<Chart>.Lookup(nodeLookup: .init(chart: chart, firsts: [:]), seedLookup: [:])
+        var lookup = ItemSet<G>.Lookup(nodeLookup: .init(G: G, firsts: [:]), seedLookup: [:])
         let itemSetGraph = try ClosedGraph(seeds: [augmentedRule], lookup: &lookup.nodeLookup)
         graph = try ClosedGraph(seeds: [ItemSet(graph: itemSetGraph)], lookup: &lookup)
     }
@@ -252,7 +252,7 @@ extension ItemSetTable {
 
 public extension Parser {
     
-    static func CLR1(rules: Chart.Type, goal: Goal.Type) throws -> Self {
+    static func CLR1(rules: G.Type, goal: Goal.Type) throws -> Self {
         let table = try ItemSetTable(rules: rules, goal: goal)
         return Parser(actions: try table.actionTable(),
                       gotos: table.gotoTable)

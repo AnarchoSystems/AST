@@ -71,7 +71,7 @@ extension Character : Codable {
     
 }
 
-public struct Parser<Chart : Grammar, Goal : ASTNode> : Codable, Equatable {
+public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
     
     public let actions : [Character? : [Int : Action]]
     public let gotos : [String : [Int : Int]]
@@ -117,7 +117,7 @@ public extension Parser {
     
     func withStack<Out>(_ stream: String, do construction: (any Rule, inout Stack<Out>) throws -> Void) throws ->Stack<Out> {
         
-        let chart = Chart()
+        let G = G()
         
         var index = stream.startIndex
         var current = stream.first
@@ -147,7 +147,7 @@ public extension Parser {
                 current = stream.indices.contains(index) ? stream[index] : nil
                 
             case .reduce(let rule, let metaType):
-                guard let dict = chart.rules[metaType],
+                guard let dict = G.rules[metaType],
                 let ru = dict[rule] else {
                     throw UnknownRule(metaType: metaType, rule: rule)
                 }
