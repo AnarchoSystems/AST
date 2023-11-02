@@ -35,7 +35,8 @@ struct RecNextIsList : Rule {
     var next : Expression
     
     func onRecognize() throws -> some ASTNode {
-        recognized.exprs.append(next) // we use left recursion so this is basically O(1)
+        recognized.exprs.append(next) // we used left recursion so this is basically O(1)
+                                      // note that we own the memory of "recognized"!
         return recognized
     }
     
