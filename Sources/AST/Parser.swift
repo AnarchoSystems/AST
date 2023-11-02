@@ -115,20 +115,20 @@ private extension Parser {
 
 public extension Parser {
     
-    func withStack<Out>(_ stream: String, do construction: (any Rule, inout Stack<Out>) throws -> Void) throws ->Stack<Out> {
+    func withStack<Out>(_ stream: String, do construction: (any Rule, ClosedRange<String.Index>, inout Stack<Out>) throws -> Void) throws ->Stack<Out> {
         
         let G = G()
         
         var index = stream.startIndex
         var current = stream.first
         
-        var stateStack = Stack<Int>()
-        stateStack.push(0)
+        var stateStack = Stack<(String.Index, Int)>()
+        stateStack.push((index, 0))
         var outStack = Stack<Out>()
         
     loop:
         while true {
-            guard let stateBefore = stateStack.peek() else {
+            guard let (_, stateBefore) = stateStack.peek() else {
                 throw UndefinedState(position: index)
             }
             guard let dict = actions[current] else {
@@ -142,8 +142,8 @@ public extension Parser {
             switch action {
                 
             case .shift(let shift):
-                stateStack.push(shift)
                 index = stream.index(after: index)
+                stateStack.push((index, shift))
                 current = stream.indices.contains(index) ? stream[index] : nil
                 
             case .reduce(let rule, let metaType):
@@ -153,14 +153,16 @@ public extension Parser {
                 }
                 for (_, child) in Mirror(reflecting: ru).children {
                     guard nil != child as? ExprProperty else {continue}
-                    _ = stateStack.pop()
+                    guard nil != stateStack.pop() else {
+                        throw UndefinedState(position: index)
+                    }
                 }
-                guard let stateAfter = stateStack.peek() else {
+                guard let (startIndex, stateAfter) = stateStack.peek() else {
                     throw UndefinedState(position: index)
                 }
-                try construction(ru, &outStack)
+                try construction(ru, startIndex...index, &outStack)
                 guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
-                stateStack.push(nextState)
+                stateStack.push((index, nextState))
                 
             case .accept:
                 break loop
@@ -171,7 +173,7 @@ public extension Parser {
     }
     
     func parse(_ stream: String) throws -> Goal? {
-        var stack = try withStack(stream) { (rule, stack : inout Stack<any ASTNode>) in
+        var stack = try withStack(stream) { (rule, range, stack : inout Stack<any ASTNode>) in
             
             for (_, rhs) in Mirror(reflecting: rule).children.reversed() {
                 guard let child = rhs as? Injectable,
@@ -181,7 +183,7 @@ public extension Parser {
                 try child.inject(toInject)
             }
             
-            stack.push(try rule.onRecognize())
+            stack.push(try rule.onRecognize(in: range))
             
         }
         return stack.pop() as? Goal

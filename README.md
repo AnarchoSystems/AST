@@ -34,7 +34,7 @@ struct RecNextIsList : Rule {
     @NonTerminal
     var next : Expression
     
-    func onRecognize() throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
         recognized.exprs.append(next) // we use left recursion so this is basically O(1)
         return recognized
     }
@@ -45,7 +45,7 @@ struct RecNextIsList : Rule {
 
 struct EmptyIsList : Rule {
     
-    func onRecognize() throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
         CommaSeparatedexpressions(exprs: [])
     }
     
@@ -60,7 +60,7 @@ struct ExprIsList : Rule {
     @NonTerminal
     var expr : Expression
     
-    func onRecognize() throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
         CommaSeparatedexpressions(exprs: [expr])
     }
     
@@ -76,7 +76,7 @@ struct CharIsExpr : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize() throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
         Expression(char: char)
     }
     
