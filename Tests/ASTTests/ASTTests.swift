@@ -43,6 +43,22 @@ final class ASTTests: XCTestCase {
         
     }
     
+    func testDigit() throws {
+        
+        let parser = try Parser.CLR1(rules: Rules.self, goal: Digit.self)
+        
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(parser)
+        
+        print(String(data: data, encoding: .utf8)!)
+        
+        let newParser = try JSONDecoder().decode(Parser<Rules, Digit>.self, from: data)
+        
+        XCTAssertEqual(parser, newParser)
+        
+    }
+    
 }
 
 // MARK: RULES
