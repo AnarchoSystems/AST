@@ -204,13 +204,13 @@ extension ItemSetTable {
             for (term, red) in try graph.nodes[start].reduceRules() {
                 let (rule, meta) = red
                 if dict[term] == nil {
-                    dict[term] = [start: .reduce(rule: rule, metaType: meta)]
+                    dict[term] = [start: .reduce(rule: rule, recognized: meta)]
                 }
                 else {
                     if dict[term]?[start] != nil {
                         throw ShiftReduceConflict()
                     }
-                    dict[term]?[start] = .reduce(rule: rule, metaType: meta)
+                    dict[term]?[start] = .reduce(rule: rule, recognized: meta)
                 }
             }
             

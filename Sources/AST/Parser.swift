@@ -9,7 +9,7 @@ import Foundation
 
 public enum Action : Codable, Equatable {
     case shift(Int)
-    case reduce(rule: String, metaType: String)
+    case reduce(rule: String, recognized: String)
     case accept
     
     enum RawType : String, Codable {
@@ -27,7 +27,7 @@ public enum Action : Codable, Equatable {
     struct Reduce : Codable {
         let type : _Reduce
         let rule : String
-        let metaType : String
+        let recognized : String
     }
     
     public init(from decoder: Decoder) throws {
@@ -38,7 +38,7 @@ public enum Action : Codable, Equatable {
             self = .shift(this.newState)
         case .reduce:
             let this = try Reduce(from: decoder)
-            self = .reduce(rule: this.rule, metaType: this.metaType)
+            self = .reduce(rule: this.rule, recognized: this.recognized)
         case .accept:
             self = .accept
         }
@@ -48,7 +48,7 @@ public enum Action : Codable, Equatable {
         case .shift(let newState):
             try Shift(type: .shift, newState: newState).encode(to: encoder)
         case .reduce(let rule, let meta):
-            try Reduce(type: .reduce, rule: rule, metaType: meta).encode(to: encoder)
+            try Reduce(type: .reduce, rule: rule, recognized: meta).encode(to: encoder)
         case .accept:
             try TypeCoder(type: .accept).encode(to: encoder)
         }
