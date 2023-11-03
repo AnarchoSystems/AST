@@ -1,6 +1,6 @@
 //
 //  Scanner.swift
-//  
+//
 //
 //  Created by Markus Kasperczyk on 03.11.23.
 //
@@ -56,17 +56,31 @@ private extension Scanner {
     
 }
 
-public enum ScannerObservation {
-    case rule(any ASTNode, ClosedRange<String.Index>)
-    case accept
+public extension Rule {
+    var kind : String {
+        String(describing: Self.self)
+    }
+    func onRecognize(in range: ClosedRange<String.Index>, plugins: [any Plugin], context: Context) throws -> MetaType {
+        var node = try onRecognize(in: range, context: context)
+        for plugin in plugins {
+            guard let plugin = plugin as? any Plugin<Self, Self.MetaType> else {continue}
+            try plugin.onDetect(self, node: &node, context: context)
+        }
+        return node
+    }
 }
 
 public extension Scanner {
     
-    mutating func scan(_ current: Character?, at index: String.Index, nextIndex: String.Index, context: Context = .init(), observe: (ScannerObservation) throws -> Void) throws {
+    mutating func scan(_ current: Character?,
+                       at index: String.Index,
+                       nextIndex: String.Index,
+                       context: Context = .init(),
+                       plugins: Plugins = .init([]),
+                       observe: (any ASTNode) throws -> Void) throws {
         
-    while true {
-        
+        while true {
+            
             guard let (stateBefore, _) = stateStack.peek() else {
                 throw UndefinedState(position: index)
             }
@@ -109,15 +123,15 @@ public extension Scanner {
                     throw UndefinedState(position: index)
                 }
                 
-                stack.push(try ru.onRecognize(in: startIndex...index, context: context))
-                try observe(.rule(stack.peek()!, startIndex...index))
+                try stack.push(ru.onRecognize(in: startIndex...index, plugins: plugins.get(ruleKind: ru.kind), context: context))
+                try observe(stack.peek()!)
                 
                 guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
                 stateStack.push((nextState, index))
                 
             case .accept:
                 
-                try observe(.rule(stack.peek()!, stateStack.peek()!.1...nextIndex))
+                try observe(stack.peek()!)
                 return
             }
             

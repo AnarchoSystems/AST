@@ -26,12 +26,18 @@ extension Character : Codable {
 
 public protocol AnyParser<Goal> {
     associatedtype Goal : ASTNode
-    func parse(_ stream: String, context: Context) throws -> Goal?
+    func parse(_ stream: String, context: Context, plugins: Plugins) throws -> Goal?
 }
 
 public extension AnyParser {
     func parse(_ stream: String) throws -> Goal? {
-        try parse(stream, context: .init())
+        try parse(stream, context: .init(), plugins: .init([]))
+    }
+    func parse(_ stream: String, context: Context) throws -> Goal? {
+        try parse(stream, context: context, plugins: .init([]))
+    }
+    func parse(_ stream: String, plugins: Plugins) throws -> Goal? {
+        try parse(stream, context: .init(), plugins: plugins)
     }
 }
 
@@ -54,29 +60,15 @@ public extension Parser {
         .init(actions: actions, gotos: gotos, startIndex: startIndex)
     }
     
-    func scan(_ stream: String, context: Context = .init(), do observe: (any ASTNode) throws -> Void) throws {
+    func scan(_ stream: String, context: Context = .init(), plugins: Plugins = .init([]), do observe: (any ASTNode) throws -> Void) throws {
         
         var scanner = Scanner<G>(actions: actions, gotos: gotos, startIndex: stream.startIndex)
         
         for index in stream.indices {
-            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index), context: context) { observation in
-                switch observation {
-                case .rule(let rule, _):
-                    try observe(rule)
-                case .accept:
-                    ()
-                }
-            }
+            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index), context: context, plugins: plugins, observe: observe)
         }
         
-        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex, context: context) { observation in
-            switch observation {
-            case .rule(let rule, _):
-                try observe(rule)
-            case .accept:
-                ()
-            }
-        }
+        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex, context: context, plugins: plugins, observe: observe)
         
     }
     
@@ -84,17 +76,12 @@ public extension Parser {
 
 extension Parser : AnyParser {
     
-    public func parse(_ stream: String, context: Context) throws -> Goal? {
+    public func parse(_ stream: String, context: Context, plugins: Plugins) throws -> Goal? {
         var rule : (any ASTNode)?
-        try scan(stream, context: context) { ru in
+        try scan(stream, context: context, plugins: plugins) { ru in
             rule = ru
         }
         return rule as? Goal
     }
     
-}
-
-struct UnknownRule : Error {
-    let metaType : String
-    let rule : String
 }

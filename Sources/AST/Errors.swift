@@ -19,7 +19,7 @@ public struct UnexpectedChar : Error {
 }
 
 public struct InvalidChar : Error {
-    let position : String.Index
+    public let position : String.Index
     public let char : Character
 }
 
@@ -33,4 +33,33 @@ public struct ReduceReduceConflict : Error {
     public let meta2 : String
     public let rule1 : String
     public let rule2 : String
+}
+
+public struct PluginsError : Error {
+    public let nodeType : String
+    public let name : String
+    public let kind : Kind
+    public enum Kind {
+        case nameConflict
+        case notFound
+    }
+}
+
+public struct UnknownRule : Error {
+    public let metaType : String
+    public let rule : String
+}
+
+public struct ParserDefinitionError : Error {
+    public let goal : String
+    public let kind : Kind
+    public enum Kind {
+        case notDefined
+        case multiplyDefined
+    }
+}
+
+public struct UnexpectedType : Error {
+    public let given : Any
+    public let expected : Any.Type
 }

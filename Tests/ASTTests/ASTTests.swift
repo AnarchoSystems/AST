@@ -67,6 +67,25 @@ final class ASTTests: XCTestCase {
         
     }
     
+    func testPlugin() throws {
+        
+        class MyPlugin : Plugin {
+            var called = false
+            func onDetect(_ rule: NumberRecognizer, node: inout Int, context: Context) throws {
+                called = true
+            }
+        }
+        
+        let parser = try Parser.CLR1(rules: Rules.self, goal: Int.self)
+        
+        let plugin = MyPlugin()
+        
+        _ = try parser.parse("1208210", plugins: Plugins([plugin]))
+        
+        XCTAssert(plugin.called)
+        
+    }
+    
 }
 
 // MARK: RULES
@@ -279,7 +298,7 @@ struct NumberRecognizer : Rule {
     @NonTerminal var oneNine : OneNine
     @NonTerminal var digits : Digits
     
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  Int {
         try Int(oneNine, digits)
     }
     
