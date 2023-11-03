@@ -24,6 +24,17 @@ extension Character : Codable {
     
 }
 
+public protocol AnyParser<Goal> {
+    associatedtype Goal : ASTNode
+    func parse(_ stream: String, context: Context) throws -> Goal?
+}
+
+public extension AnyParser {
+    func parse(_ stream: String) throws -> Goal? {
+        try parse(stream, context: .init())
+    }
+}
+
 public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
     
     public let actions : [Character? : [Int : Action]]
@@ -43,25 +54,25 @@ public extension Parser {
         .init(actions: actions, gotos: gotos, startIndex: startIndex)
     }
     
-    func scan(_ stream: String, do observe: (any ASTNode, ClosedRange<String.Index>) throws -> Void) throws {
+    func scan(_ stream: String, context: Context = .init(), do observe: (any ASTNode) throws -> Void) throws {
         
         var scanner = Scanner<G>(actions: actions, gotos: gotos, startIndex: stream.startIndex)
         
         for index in stream.indices {
-            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index)) { observation in
+            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index), context: context) { observation in
                 switch observation {
-                case .rule(let rule, let range):
-                    try observe(rule, range)
+                case .rule(let rule, _):
+                    try observe(rule)
                 case .accept:
                     ()
                 }
             }
         }
         
-        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex) { observation in
+        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex, context: context) { observation in
             switch observation {
-            case .rule(let rule, let range):
-                try observe(rule, range)
+            case .rule(let rule, _):
+                try observe(rule)
             case .accept:
                 ()
             }
@@ -69,9 +80,13 @@ public extension Parser {
         
     }
     
-    func parse(_ stream: String) throws -> Goal? {
+}
+
+extension Parser : AnyParser {
+    
+    public func parse(_ stream: String, context: Context) throws -> Goal? {
         var rule : (any ASTNode)?
-        try scan(stream) { (ru, _) in
+        try scan(stream, context: context) { ru in
             rule = ru
         }
         return rule as? Goal

@@ -162,7 +162,7 @@ struct IntIDOrInt : Rule {
     @NonTerminal
     var int : Int
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         IntOrIdentifier.integer(int)
     }
     
@@ -173,7 +173,7 @@ struct IdentifierIDOrInt : Rule {
     @NonTerminal
     var id : Identifier
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         IntOrIdentifier.identifier(id)
     }
     
@@ -195,7 +195,7 @@ struct LetterDigitsOrLettersIsIdentifier : Rule {
     @NonTerminal
     var digitsOrLetters : DigitsOrLetters
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         return Identifier(string: String(letter.char) + digitsOrLetters.string, range: range) // slow...
     }
     
@@ -206,7 +206,7 @@ struct LetterIdentifier : Rule {
     @NonTerminal
     var letter : Letter
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         Identifier(string: String(letter.char), range: range)
     }
     
@@ -228,7 +228,7 @@ struct DigitsOrLettersRecursion : Rule {
     @NonTerminal
     var new : DigitOrLetter
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         known.string.append(new.char)
         return known
     }
@@ -240,7 +240,7 @@ struct DigitOrLetterIsDigitsOrLetters : Rule {
     @NonTerminal
     var digitOrLetter : DigitOrLetter
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         DigitsOrLetters(string: String(digitOrLetter.char))
     }
     
@@ -250,7 +250,7 @@ struct LetterIsDigitOrLetter : Rule {
     
     @NonTerminal var letter : Letter
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         DigitOrLetter(char: letter.char)
     }
     
@@ -260,7 +260,7 @@ struct DigitIsDigitOrLetter : Rule {
     
     @NonTerminal var digit : Digit
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         DigitOrLetter(char: digit.char)
     }
     
@@ -279,7 +279,7 @@ struct NumberRecognizer : Rule {
     @NonTerminal var oneNine : OneNine
     @NonTerminal var digits : Digits
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
         try Int(oneNine, digits)
     }
     
@@ -290,7 +290,7 @@ struct DigitDigitsDigits : Rule {
     @NonTerminal var digits : Digits
     @NonTerminal var digit : Digit
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
         Digits(digits: &digits, newDigit: digit)
     }
     
@@ -300,7 +300,7 @@ struct DigitDigits : Rule {
     
     @NonTerminal var digit : Digit
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
         Digits(digit: digit)
     }
     
@@ -324,7 +324,7 @@ struct LetterRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
         try Letter(char: char)
     }
     
@@ -346,7 +346,7 @@ struct DigitRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws ->  some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws ->  some ASTNode {
         try Digit(char: char)
     }
     
@@ -368,7 +368,7 @@ struct OneNineRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         try OneNine(char: char)
     }
     
@@ -396,7 +396,7 @@ struct RecNextIsList : Rule {
     @NonTerminal
     var next : Expression
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         recognized.exprs.append(next)
         return recognized
     }
@@ -405,7 +405,7 @@ struct RecNextIsList : Rule {
 
 struct EmptyIsList : Rule {
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         CommaSeparatedexpressions(exprs: [])
     }
     
@@ -416,7 +416,7 @@ struct ExprIsList : Rule {
     @NonTerminal
     var expr : Expression
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         CommaSeparatedexpressions(exprs: [expr])
     }
     
@@ -430,7 +430,7 @@ struct CharIsExpr : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(in range: ClosedRange<String.Index>) throws -> some ASTNode {
+    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
         Expression(char: char)
     }
     

@@ -63,7 +63,7 @@ public enum ScannerObservation {
 
 public extension Scanner {
     
-    mutating func scan(_ current: Character?, at index: String.Index, nextIndex: String.Index, observe: (ScannerObservation) throws -> Void) throws {
+    mutating func scan(_ current: Character?, at index: String.Index, nextIndex: String.Index, context: Context = .init(), observe: (ScannerObservation) throws -> Void) throws {
         
     while true {
         
@@ -109,13 +109,14 @@ public extension Scanner {
                     throw UndefinedState(position: index)
                 }
                 
-                stack.push(try ru.onRecognize(in: startIndex...index))
+                stack.push(try ru.onRecognize(in: startIndex...index, context: context))
                 try observe(.rule(stack.peek()!, startIndex...index))
                 
                 guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
                 stateStack.push((nextState, index))
                 
             case .accept:
+                
                 try observe(.rule(stack.peek()!, stateStack.peek()!.1...nextIndex))
                 return
             }
