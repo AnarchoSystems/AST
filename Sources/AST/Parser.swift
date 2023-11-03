@@ -7,53 +7,6 @@
 
 import Foundation
 
-public enum Action : Codable, Equatable {
-    case shift(Int)
-    case reduce(rule: String, recognized: String)
-    case accept
-    
-    enum RawType : String, Codable {
-        case shift, reduce, accept
-    }
-    struct TypeCoder : Codable {
-        let type : RawType
-    }
-    enum _Shift : String, Codable {case shift}
-    struct Shift : Codable {
-        let type : _Shift
-        let newState : Int
-    }
-    enum _Reduce : String, Codable {case reduce}
-    struct Reduce : Codable {
-        let type : _Reduce
-        let rule : String
-        let recognized : String
-    }
-    
-    public init(from decoder: Decoder) throws {
-        let type = try TypeCoder(from: decoder)
-        switch type.type {
-        case .shift:
-            let this = try Shift(from: decoder)
-            self = .shift(this.newState)
-        case .reduce:
-            let this = try Reduce(from: decoder)
-            self = .reduce(rule: this.rule, recognized: this.recognized)
-        case .accept:
-            self = .accept
-        }
-    }
-    public func encode(to encoder: Encoder) throws {
-        switch self {
-        case .shift(let newState):
-            try Shift(type: .shift, newState: newState).encode(to: encoder)
-        case .reduce(let rule, let meta):
-            try Reduce(type: .reduce, rule: rule, recognized: meta).encode(to: encoder)
-        case .accept:
-            try TypeCoder(type: .accept).encode(to: encoder)
-        }
-    }
-}
 
 extension Character : Codable {
     
@@ -84,109 +37,44 @@ public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
     
 }
 
-private extension Parser {
-    
-    func gatherExeptionData(_ state: Int, current: Character?) -> Error {
-        var nonTerms = Set<String>()
-        var nextStates : Set<Int> = [state]
-        while !nextStates.isEmpty {
-            var nextNextStates : Set<Int> = []
-            for ns in nextStates {
-                let actions = self.actions.compactMap({ (key: Character?, value: [Int : Action]) in
-                    value[ns].map{(key, $0)}
-                })
-                for (_, action) in actions {
-                    switch action {
-                    case .shift(let int):
-                        nextNextStates.insert(int)
-                    case .reduce(_, let meta):
-                        nonTerms.insert(meta)
-                    case .accept:
-                        continue
-                    }
-                }
-            }
-            nextStates = nextNextStates
-        }
-        return UnexpectedChar(char: current, expecting: Set(nonTerms))
-    }
-    
-}
-
 public extension Parser {
     
-    func withStack<Out>(_ stream: String, do construction: (any Rule, ClosedRange<String.Index>, inout Stack<Out>) throws -> Void) throws ->Stack<Out> {
+    func scanner(startIndex: String.Index) -> Scanner<G> {
+        .init(actions: actions, gotos: gotos, startIndex: startIndex)
+    }
+    
+    func scan(_ stream: String, do observe: (any ASTNode, ClosedRange<String.Index>) throws -> Void) throws {
         
-        let G = G()
+        var scanner = Scanner<G>(actions: actions, gotos: gotos, startIndex: stream.startIndex)
         
-        var index = stream.startIndex
-        var current = stream.first
-        
-        var stateStack = Stack<(String.Index, Int)>()
-        stateStack.push((index, 0))
-        var outStack = Stack<Out>()
-        
-    loop:
-        while true {
-            guard let (_, stateBefore) = stateStack.peek() else {
-                throw UndefinedState(position: index)
-            }
-            guard let dict = actions[current] else {
-                throw InvalidChar(position: index, char: current ?? "$")
-            }
-            guard let action = dict[stateBefore] else {
-                let parent = stateBefore
-                throw gatherExeptionData(parent, current: current)
-            }
-            
-            switch action {
-                
-            case .shift(let shift):
-                index = stream.index(after: index)
-                stateStack.push((index, shift))
-                current = stream.indices.contains(index) ? stream[index] : nil
-                
-            case .reduce(let rule, let metaType):
-                guard let dict = G.rules[metaType],
-                let ru = dict[rule] else {
-                    throw UnknownRule(metaType: metaType, rule: rule)
+        for index in stream.indices {
+            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index)) { observation in
+                switch observation {
+                case .rule(let rule, let range):
+                    try observe(rule, range)
+                case .accept:
+                    ()
                 }
-                for (_, child) in Mirror(reflecting: ru).children {
-                    guard nil != child as? ExprProperty else {continue}
-                    guard nil != stateStack.pop() else {
-                        throw UndefinedState(position: index)
-                    }
-                }
-                guard let (startIndex, stateAfter) = stateStack.peek() else {
-                    throw UndefinedState(position: index)
-                }
-                try construction(ru, startIndex...index, &outStack)
-                guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
-                stateStack.push((index, nextState))
-                
-            case .accept:
-                break loop
             }
-            
         }
-        return outStack
+        
+        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex) { observation in
+            switch observation {
+            case .rule(let rule, let range):
+                try observe(rule, range)
+            case .accept:
+                ()
+            }
+        }
+        
     }
     
     func parse(_ stream: String) throws -> Goal? {
-        var stack = try withStack(stream) { (rule, range, stack : inout Stack<any ASTNode>) in
-            
-            for (_, rhs) in Mirror(reflecting: rule).children.reversed() {
-                guard let child = rhs as? Injectable,
-                      let toInject = stack.pop() else {
-                    continue
-                }
-                try child.inject(toInject)
-            }
-            
-            stack.push(try rule.onRecognize(in: range))
-            
+        var rule : (any ASTNode)?
+        try scan(stream) { (ru, _) in
+            rule = ru
         }
-        return stack.pop() as? Goal
+        return rule as? Goal
     }
     
 }
