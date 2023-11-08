@@ -44,13 +44,13 @@ public class NonTerminal<Meta : ASTNode> : ExprProperty, Injectable {
         wrapped = meta
     }
     public var wrappedValue : Meta {
-        get
+        _read
         {
-            wrapped!
+            yield wrapped!
         }
-        set
+        _modify
         {
-            wrapped = newValue
+           yield &wrapped!
         }
     }
     public init() {}
