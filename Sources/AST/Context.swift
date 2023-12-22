@@ -11,24 +11,31 @@ public extension AnyParser {
     }
 }
 
-public struct Parsers {
-    private let dict : [String : any AnyParser]
-    public func get<Goal : ASTNode>(goal: Goal.Type) throws -> any AnyParser<Goal> {
-        guard let result = dict[Goal.typeDescription] as? any AnyParser<Goal> else {
-            throw ParserDefinitionError(goal: Goal.typeDescription, kind: .notDefined)
-        }
-        return result
+public struct SourceLocation : Codable, Comparable {
+    public var line : Int
+    public var column : Int
+    public init(line: Int, column: Int) {
+        self.line = line
+        self.column = column
     }
-    public init(_ parsers: [any AnyParser]) throws {
-        dict = try Dictionary(parsers.map{($0.goal, $0)}) {_, p in
-            throw ParserDefinitionError(goal: p.goal, kind: .multiplyDefined)
+    public static func <(lhs: Self, rhs: Self) -> Bool {
+        if lhs.line == rhs.line {
+            return lhs.column < rhs.column
         }
+        return lhs.line < rhs.line
     }
 }
 
 public struct Context {
-    public let parsers : Parsers
-    public init(parsers: Parsers = try! .init([])) {
-        self.parsers = parsers
+    public let originalText : String
+    public let range : ClosedRange<String.Index>
+    public var rangedText : Substring {
+        originalText[range]
+    }
+    public let sourceRange : ClosedRange<SourceLocation>
+    public init(originalText: String, range: ClosedRange<String.Index>, sourceRange:  ClosedRange<SourceLocation>) {
+        self.originalText = originalText
+        self.range = range
+        self.sourceRange = sourceRange
     }
 }

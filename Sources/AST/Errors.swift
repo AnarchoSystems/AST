@@ -35,16 +35,6 @@ public struct ReduceReduceConflict : Error {
     public let rule2 : String
 }
 
-public struct PluginsError : Error {
-    public let nodeType : String
-    public let name : String
-    public let kind : Kind
-    public enum Kind {
-        case nameConflict
-        case notFound
-    }
-}
-
 public struct UnknownRule : Error {
     public let metaType : String
     public let rule : String

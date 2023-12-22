@@ -8,7 +8,7 @@
 public protocol Rule {
     var ruleName : String {get}
     associatedtype MetaType : ASTNode
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> MetaType
+    func onRecognize(context: Context) throws -> MetaType
 }
 
 public extension Rule {

@@ -26,19 +26,7 @@ extension Character : Codable {
 
 public protocol AnyParser<Goal> {
     associatedtype Goal : ASTNode
-    func parse(_ stream: String, context: Context, plugins: Plugins) throws -> Goal?
-}
-
-public extension AnyParser {
-    func parse(_ stream: String) throws -> Goal? {
-        try parse(stream, context: .init(), plugins: .init([]))
-    }
-    func parse(_ stream: String, context: Context) throws -> Goal? {
-        try parse(stream, context: context, plugins: .init([]))
-    }
-    func parse(_ stream: String, plugins: Plugins) throws -> Goal? {
-        try parse(stream, context: .init(), plugins: plugins)
-    }
+    func parse(_ stream: String) throws -> Goal?
 }
 
 public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
@@ -54,33 +42,131 @@ public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
     
 }
 
-public extension Parser {
+private extension Parser {
     
-    func scanner(startIndex: String.Index) -> Scanner<G> {
-        .init(actions: actions, gotos: gotos, startIndex: startIndex)
-    }
-    
-    func scan(_ stream: String, context: Context = .init(), plugins: Plugins = .init([]), do observe: (any ASTNode) throws -> Void) throws {
-        
-        var scanner = Scanner<G>(actions: actions, gotos: gotos, startIndex: stream.startIndex)
-        
-        for index in stream.indices {
-            try scanner.scan(stream[index], at: index, nextIndex: stream.index(after: index), context: context, plugins: plugins, observe: observe)
+    func gatherExeptionData(_ state: Int, current: Character?) -> Error {
+        var nonTerms = Set<String>()
+        var nextStates : Set<Int> = [state]
+        while !nextStates.isEmpty {
+            var nextNextStates : Set<Int> = []
+            for ns in nextStates {
+                let actions = self.actions.compactMap({ (key: Character?, value: [Int : Action]) in
+                    value[ns].map{(key, $0)}
+                })
+                for (_, action) in actions {
+                    switch action {
+                    case .shift(let int):
+                        nextNextStates.insert(int)
+                    case .reduce(_, let meta):
+                        nonTerms.insert(meta)
+                    case .accept:
+                        continue
+                    }
+                }
+            }
+            nextStates = nextNextStates
         }
-        
-        try scanner.scan(nil, at: stream.endIndex, nextIndex: stream.endIndex, context: context, plugins: plugins, observe: observe)
-        
+        return UnexpectedChar(char: current, expecting: Set(nonTerms))
     }
     
 }
 
+public extension Rule {
+    var kind : String {
+        String(describing: Self.self)
+    }
+}
+
+
 extension Parser : AnyParser {
     
-    public func parse(_ stream: String, context: Context, plugins: Plugins) throws -> Goal? {
+    public func parse(_ stream: String) throws -> Goal? {
         var rule : (any ASTNode)?
-        try scan(stream, context: context, plugins: plugins) { ru in
-            rule = ru
+        
+        var stateStack = Stack<(Int, String.Index, SourceLocation)>()
+        var stack = Stack<any ASTNode>()
+        
+        var location = SourceLocation(line: 0, column: 0)
+        
+        stateStack.push((0, stream.startIndex, location))
+        
+        let grammar = G()
+        
+    iterateIndices:
+        for index in Array(stream.indices) + [stream.endIndex] {
+            
+            let nextIndex = index < stream.endIndex ? stream.index(after: index) : stream.endIndex
+            let current = stream.indices.contains(index) ? stream[index] : nil
+            
+            if current == "\n" {
+                location.line += 1
+                location.column = 0
+            }
+            else {
+                location.column += 1
+            }
+            
+            while true {
+                
+                guard let (stateBefore, _, _) = stateStack.peek() else {
+                    throw UndefinedState(position: index)
+                }
+                guard let dict = actions[current] else {
+                    throw InvalidChar(position: index, char: current ?? "$")
+                }
+                guard let action = dict[stateBefore] else {
+                    let parent = stateBefore
+                    throw gatherExeptionData(parent, current: current)
+                }
+                
+                switch action {
+                    
+                case .shift(let shift):
+                    stateStack.push((shift, nextIndex, location))
+                    continue iterateIndices
+                    
+                case .reduce(let rule, let metaType):
+                    guard let ru = grammar.rules[metaType]?[rule] else {
+                        throw UnknownRule(metaType: metaType, rule: rule)
+                    }
+                    for (_, rhs) in Mirror(reflecting: ru).children.reversed() {
+                        
+                        if let child = rhs as? Injectable,
+                           let toInject = stack.pop() {
+                            try child.inject(toInject)
+                            guard nil != stateStack.pop() else {
+                                throw UndefinedState(position: index)
+                            }
+                        }
+                        
+                        if rhs is Terminal {
+                            guard nil != stateStack.pop() else {
+                                throw UndefinedState(position: index)
+                            }
+                        }
+                        
+                    }
+                    guard let (stateAfter, startIndex, startLocation) = stateStack.peek() else {
+                        throw UndefinedState(position: index)
+                    }
+                    
+                    let context = Context(originalText: stream,
+                                          range: startIndex...index,
+                                          sourceRange: startLocation...location)
+                    try stack.push(ru.onRecognize(context: context))
+                    
+                    guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
+                    stateStack.push((nextState, index, location))
+                    
+                case .accept:
+                    
+                    rule = stack.peek()!
+                    break iterateIndices
+                }
+                
+            }
         }
+        
         return rule as? Goal
     }
     
