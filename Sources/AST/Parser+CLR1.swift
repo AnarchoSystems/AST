@@ -8,27 +8,27 @@
 // MARK: FIRST
 
 fileprivate extension Grammar {
-    func first(_ expr: Expr) -> Set<Character?> {
+    func first(_ expr: Expr<Symbol.RawValue>) -> Set<Symbol.RawValue?> {
         switch expr {
         case .term(let term):
             return [term]
         case .nonTerm(let nT):
-            var results : Set<Character?> = []
+            var results : Set<Symbol.RawValue?> = []
             var nTermsLookedAt : Set<String> = []
             var nTermsToLookAt : Set<String> = [nT]
             while !nTermsToLookAt.isEmpty {
                 var newNTermsToLookAt : Set<String> = []
                 for nT in nTermsToLookAt {
                     for rule in rules[nT]?.values ?? [:].values {
-                        guard let next = Mirror(reflecting: rule).children.first(where: {$1 is Injectable || $1 is Terminal})?.value else {
+                        guard let next = Mirror(reflecting: rule).children.first(where: {$1 is Injectable || $1 is _Terminal<Symbol>})?.value else {
                             results.insert(nil)
                             continue
                         }
-                        if let term = next as? Terminal {
-                            results.insert(term.wrappedValue)
+                        if let term = next as? _Terminal<Symbol> {
+                            results.insert(term.checkSymbol)
                         }
                         else {
-                            let inj = next as! Injectable
+                            let inj = next as! HasTypeName
                             if !nTermsLookedAt.contains(inj.typeName) {
                                 newNTermsToLookAt.insert(inj.typeName)
                             }
@@ -51,14 +51,14 @@ fileprivate struct Item<G : Grammar> : Node {
     
     struct Lookup {
         let G : G
-        var firsts : [Expr : Set<Character?>]
+        var firsts : [Expr<G.Symbol.RawValue> : Set<G.Symbol.RawValue?>]
     }
     typealias Edge = String
     
     let rule : String?
     let meta : String
-    let all : [Expr]
-    let lookAheads : Set<Character?>
+    let all : [Expr<G.Symbol.RawValue>]
+    let lookAheads : Set<G.Symbol.RawValue?>
     let ptr : Int
     
     func canReach (lookup: inout Lookup) -> [String : [Item<G>]] {
@@ -77,7 +77,7 @@ fileprivate struct Item<G : Grammar> : Node {
         var values : [Item] = []
         
         for rule in lookup.G.rules[nT]?.values ?? [:].values {
-            let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? ExprProperty)?.expr}
+            let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? any ExprProperty<G.Symbol.RawValue>)?.expr}
             values.append(Item(rule: rule.ruleName,
                                meta: rule.typeName,
                                all: all,
@@ -102,10 +102,10 @@ fileprivate struct ItemSet<G : Grammar> {
 
 extension Item {
     
-    func tryAdvance(_ expr: Expr) -> Item<G>? {
+    func tryAdvance(_ expr: Expr<G.Symbol.RawValue>) -> Item<G>? {
         tbd.first.flatMap{$0 == expr ? Item(rule: rule, meta: meta, all: all, lookAheads: lookAheads, ptr: ptr + 1) : nil}
     }
-    var tbd : some Collection<Expr> {
+    var tbd : some Collection<Expr<G.Context.State.Symbol.RawValue>> {
         all[ptr...]
     }
     
@@ -118,12 +118,12 @@ extension ItemSet : Node {
         var seedLookup : [[Item<G>] : ItemSet<G>]
     }
     
-    func canReach(lookup: inout Lookup) throws -> [Expr : [ItemSet<G>]] {
+    func canReach(lookup: inout Lookup) throws -> [Expr<G.Symbol.RawValue> : [ItemSet<G>]] {
         let exprs = Set(graph.nodes.compactMap(\.tbd.first))
-        let terms = Set(exprs.compactMap{expr -> Character? in
+        let terms = Set(exprs.compactMap{expr -> G.Symbol.RawValue? in
             guard case .term(let t) = expr else {return nil}
             return t
-        }) as Set<Character?>
+        }) as Set<G.Symbol.RawValue?>
         let rules = try reduceRules()
         if !terms.intersection(rules.keys).isEmpty {
             throw ShiftReduceConflict()
@@ -170,7 +170,7 @@ fileprivate struct ItemSetTable<G : Grammar, Goal : ASTNode> {
 
 extension ItemSet {
     
-    func reduceRules() throws -> [Character? : (rule: String, meta: String)] {
+    func reduceRules() throws -> [G.Symbol.RawValue? : (rule: String, meta: String)] {
         let results = graph.nodes.filter(\.tbd.isEmpty).flatMap{rule in rule.rule.map{val in rule.lookAheads.map{key in (key, (rule: val, meta: rule.meta))}} ?? []}
         return try Dictionary(results) {val1, val2 in
             if val1.rule == val2.rule && val1.meta == val2.meta {
@@ -187,11 +187,11 @@ extension ItemSet {
 
 extension ItemSetTable {
     
-    func actionTable() throws -> [Character? : [Int : Action]] {
+    func actionTable() throws -> [G.Symbol.RawValue? : [Int : Action]] {
         
         // shifts
         
-        let keyAndVals = graph.edges.compactMap{(key : Expr, vals : [Int : [Int]]) -> (Character, [Int : Action])? in
+        let keyAndVals = graph.edges.compactMap{(key : Expr, vals : [Int : [Int]]) -> (G.Symbol.RawValue, [Int : Action])? in
             guard case .term(let t) = key else {return nil}
             let dict = Dictionary(uniqueKeysWithValues: vals.map{start, ends in
                 assert(ends.count == 1)
@@ -200,7 +200,7 @@ extension ItemSetTable {
             return (t, dict)
         }
         
-        var dict = Dictionary(uniqueKeysWithValues: keyAndVals) as [Character? : [Int : Action]]
+        var dict = Dictionary(uniqueKeysWithValues: keyAndVals) as [G.Symbol.RawValue? : [Int : Action]]
         
         for start in graph.nodes.indices {
             

@@ -13,7 +13,7 @@ final class ASTTests: XCTestCase {
         XCTAssertThrowsError(try parser.parse("1203240a"))
         
         let str = "a2450236taAFwegaeF005389"
-        try XCTAssertEqual(parser.parse(str), .identifier(Identifier(string: str, range: str.startIndex...str.endIndex)))
+        try XCTAssertEqual(parser.parse(str), .identifier(Identifier(string: str)))
         
     }
     
@@ -34,7 +34,7 @@ final class ASTTests: XCTestCase {
         let parser = try Parser.CLR1(rules: Rules.self, goal: Identifier.self)
         
         for str in ["a1253ga325346", "efaghlkhgklnalrk", "AFEALFKHafhs", "ohIAEFho2345sfdh"] {
-            try XCTAssertEqual(parser.parse(str), Identifier(string: str, range: str.startIndex...str.endIndex))
+            try XCTAssertEqual(parser.parse(str), Identifier(string: str))
         }
         
         for str in ["12hai", "2aeugho", "3LHafNA3"] {
@@ -73,9 +73,11 @@ final class ASTTests: XCTestCase {
 
 struct Rules : Grammar {
     
-    var allRules : [any Rule] { idOrInt + identifierRecursion + numberRecursion + lowerLevel}
+    typealias Context = AST.Context
     
-    var lowerLevel : [any Rule] { digitsOrLetters + letter + digit + oneNine }
+    var allRules : [any Rule<Context>] { idOrInt + identifierRecursion + numberRecursion + lowerLevel}
+    
+    var lowerLevel : [any Rule<Context>] { digitsOrLetters + letter + digit + oneNine }
     
 }
 
@@ -88,7 +90,6 @@ enum IntOrIdentifier : ASTNode, Equatable {
 
 struct Identifier : ASTNode, Equatable {
     let string : String
-    let range : ClosedRange<String.Index>
 }
 
 struct DigitsOrLetters : ASTNode {
@@ -153,7 +154,7 @@ struct OneNine : ASTNode {
 
 extension Rules {
     
-    var idOrInt : [any Rule] { [IdentifierIDOrInt(), IntIDOrInt()] }
+    var idOrInt : [any Rule<Context>] { [IdentifierIDOrInt(), IntIDOrInt()] }
     
 }
 
@@ -183,7 +184,7 @@ struct IdentifierIDOrInt : Rule {
 
 extension Rules {
     
-    var identifierRecursion : [any Rule] { [LetterIdentifier(), LetterDigitsOrLettersIsIdentifier()] }
+    var identifierRecursion : [any Rule<Context>] { [LetterIdentifier(), LetterDigitsOrLettersIsIdentifier()] }
     
 }
 
@@ -196,7 +197,7 @@ struct LetterDigitsOrLettersIsIdentifier : Rule {
     var digitsOrLetters : DigitsOrLetters
     
     func onRecognize(context: Context) throws -> some ASTNode {
-        return Identifier(string: String(letter.char) + digitsOrLetters.string, range: context.range) // slow...
+        return Identifier(string: String(letter.char) + digitsOrLetters.string) // slow...
     }
     
 }
@@ -207,7 +208,7 @@ struct LetterIdentifier : Rule {
     var letter : Letter
     
     func onRecognize(context: Context) throws -> some ASTNode {
-        Identifier(string: String(letter.char), range: context.range)
+        Identifier(string: String(letter.char))
     }
     
 }
@@ -216,7 +217,7 @@ struct LetterIdentifier : Rule {
 
 extension Rules {
     
-    var digitsOrLetters : [any Rule] { [DigitsOrLettersRecursion(), DigitIsDigitOrLetter(), LetterIsDigitOrLetter(), DigitOrLetterIsDigitsOrLetters()] }
+    var digitsOrLetters : [any Rule<Context>] { [DigitsOrLettersRecursion(), DigitIsDigitOrLetter(), LetterIsDigitOrLetter(), DigitOrLetterIsDigitsOrLetters()] }
     
 }
 
@@ -270,7 +271,7 @@ struct DigitIsDigitOrLetter : Rule {
 
 extension Rules {
     
-    var numberRecursion : [any Rule] { [DigitDigits(), DigitDigitsDigits(), NumberRecognizer()] }
+    var numberRecursion : [any Rule<Context>] { [DigitDigits(), DigitDigitsDigits(), NumberRecognizer()] }
     
 }
 
@@ -310,7 +311,7 @@ struct DigitDigits : Rule {
 
 extension Rules {
     
-    var letter : [any Rule] { ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
+    var letter : [any Rule<Context>] { ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
                                "k", "K", "l", "L", "m", "M", "n", "N", "o", "O", "p", "P", "q", "Q", "r", "R", "s", "S", "t", "T", "u", "U", "v", "V",
                                "w", "W", "x", "X", "y", "Y", "z", "Z"].map(LetterRecognizer.init) }
     
@@ -334,7 +335,7 @@ struct LetterRecognizer : Rule {
 
 extension Rules {
     
-    var digit : [any Rule] { (0...9).map(String.init).compactMap(\.first).map(DigitRecognizer.init) }
+    var digit : [any Rule<Context>] { (0...9).map(String.init).compactMap(\.first).map(DigitRecognizer.init) }
     
 }
 
@@ -356,7 +357,7 @@ struct DigitRecognizer : Rule {
 
 extension Rules {
     
-    var oneNine : [any Rule] { (1...9).map(String.init).compactMap(\.first).map(OneNineRecognizer.init) }
+    var oneNine : [any Rule<Context>] { (1...9).map(String.init).compactMap(\.first).map(OneNineRecognizer.init) }
     
 }
 
@@ -439,7 +440,7 @@ struct CharIsExpr : Rule {
 // MARK: List Grammar
 
 struct ListGrammar : Grammar {
-    var allRules: [any Rule] {
+    var allRules: [any Rule<Context>] {
         ["a", "b", "c"].map(CharIsExpr.init) + [RecNextIsList(), EmptyIsList(), ExprIsList()]
     }
 }

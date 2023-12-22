@@ -5,36 +5,12 @@
 //  Created by Markus Kasperczyk on 29.10.23.
 //
 
-import Foundation
-
-
-extension Character : Codable {
-    
-    public func encode(to encoder: Encoder) throws {
-        try String(self).encode(to: encoder)
-    }
-    
-    public init(from decoder: Decoder) throws {
-        let str = try String(from: decoder)
-        guard str.count == 1 else {
-            throw NSError() //todo
-        }
-        self = str.first!
-    }
-    
-}
-
-public protocol AnyParser<Goal> {
-    associatedtype Goal : ASTNode
-    func parse(_ stream: String) throws -> Goal?
-}
-
 public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
     
-    public let actions : [Character? : [Int : Action]]
+    public let actions : [G.Symbol.RawValue? : [Int : Action]]
     public let gotos : [String : [Int : Int]]
     
-    public init(actions: [Character? : [Int : Action]],
+    public init(actions: [G.Symbol.RawValue? : [Int : Action]],
                 gotos: [String : [Int : Int]]) {
         self.actions = actions
         self.gotos = gotos
@@ -44,13 +20,13 @@ public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
 
 private extension Parser {
     
-    func gatherExeptionData(_ state: Int, current: Character?) -> Error {
+    func gatherExeptionData(_ state: Int, current: G.Symbol?) -> Error {
         var nonTerms = Set<String>()
         var nextStates : Set<Int> = [state]
         while !nextStates.isEmpty {
             var nextNextStates : Set<Int> = []
             for ns in nextStates {
-                let actions = self.actions.compactMap({ (key: Character?, value: [Int : Action]) in
+                let actions = self.actions.compactMap({ (key: G.Symbol.RawValue?, value: [Int : Action]) in
                     value[ns].map{(key, $0)}
                 })
                 for (_, action) in actions {
@@ -77,42 +53,39 @@ public extension Rule {
     }
 }
 
+public extension Parser {
+    var goal : String {
+        Goal.typeDescription
+    }
+}
 
-extension Parser : AnyParser {
+
+extension Parser {
     
-    public func parse(_ stream: String) throws -> Goal? {
+    public func parse<C : Collection>(_ stream: C) throws -> Goal? where C.Element == G.Context.State.Symbol {
         var rule : (any ASTNode)?
         
-        var stateStack = Stack<(Int, String.Index, SourceLocation)>()
+        var stateStack = Stack<(Int, G.Symbol?, G.Context.State)>()
         var stack = Stack<any ASTNode>()
         
-        var location = SourceLocation(line: 0, column: 0)
+        var state = G.Context.State()
         
-        stateStack.push((0, stream.startIndex, location))
+        stateStack.push((0, nil, state))
         
         let grammar = G()
         
     iterateIndices:
         for index in Array(stream.indices) + [stream.endIndex] {
             
-            let nextIndex = index < stream.endIndex ? stream.index(after: index) : stream.endIndex
             let current = stream.indices.contains(index) ? stream[index] : nil
-            
-            if current == "\n" {
-                location.line += 1
-                location.column = 0
-            }
-            else {
-                location.column += 1
-            }
             
             while true {
                 
                 guard let (stateBefore, _, _) = stateStack.peek() else {
                     throw UndefinedState(position: index)
                 }
-                guard let dict = actions[current] else {
-                    throw InvalidChar(position: index, char: current ?? "$")
+                guard let dict = actions[current?.rawValue] else {
+                    throw InvalidChar(position: index, char: current)
                 }
                 guard let action = dict[stateBefore] else {
                     let parent = stateBefore
@@ -122,7 +95,8 @@ extension Parser : AnyParser {
                 switch action {
                     
                 case .shift(let shift):
-                    stateStack.push((shift, nextIndex, location))
+                    state.advance(current)
+                    stateStack.push((shift, current, state))
                     continue iterateIndices
                     
                 case .reduce(let rule, let metaType):
@@ -139,24 +113,23 @@ extension Parser : AnyParser {
                             }
                         }
                         
-                        if rhs is Terminal {
-                            guard nil != stateStack.pop() else {
+                        else if let child = rhs as? _Terminal<G.Symbol> {
+                            guard let (_, char, _) = stateStack.pop(), let char = char else {
                                 throw UndefinedState(position: index)
                             }
+                            try child.inject(char)
                         }
                         
                     }
-                    guard let (stateAfter, startIndex, startLocation) = stateStack.peek() else {
+                    guard let (stateAfter, _, oldState) = stateStack.peek() else {
                         throw UndefinedState(position: index)
                     }
                     
-                    let context = Context(originalText: stream,
-                                          range: startIndex...index,
-                                          sourceRange: startLocation...location)
-                    try stack.push(ru.onRecognize(context: context))
+                    let context = G.Context.span(from: oldState, to: state, stream: stream)
+                    try stack.push(ru._onRecognize(context))
                     
                     guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
-                    stateStack.push((nextState, index, location))
+                    stateStack.push((nextState, current, state))
                     
                 case .accept:
                     
@@ -165,6 +138,7 @@ extension Parser : AnyParser {
                 }
                 
             }
+            
         }
         
         return rule as? Goal

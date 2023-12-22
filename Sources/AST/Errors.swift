@@ -9,18 +9,18 @@ public struct ShiftReduceConflict : Error {}
 
 public struct AcceptConflict : Error {}
 
-public struct UndefinedState : Error {
-    let position : String.Index
+public struct UndefinedState<Index> : Error {
+    let position : Index
 }
 
-public struct UnexpectedChar : Error {
-    public let char : Character?
+public struct UnexpectedChar<Symbol> : Error {
+    public let char : Symbol?
     public let expecting : Set<String>
 }
 
-public struct InvalidChar : Error {
-    public let position : String.Index
-    public let char : Character
+public struct InvalidChar<Index, Symbol> : Error {
+    public let position : Index
+    public let char : Symbol?
 }
 
 public struct NoGoTo : Error {
@@ -52,4 +52,9 @@ public struct ParserDefinitionError : Error {
 public struct UnexpectedType : Error {
     public let given : Any
     public let expected : Any.Type
+}
+
+public struct UnexpectedSymbol<Symb : SymbolProtocol> : Error {
+    public let got : Symb
+    public let expected : Symb.RawValue
 }
