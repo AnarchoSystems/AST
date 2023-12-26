@@ -67,6 +67,22 @@ final class ASTTests: XCTestCase {
         
     }
     
+    func testPerformance() throws {
+        
+        let parser = try Parser.CLR1(rules: Rules.self, goal: IntOrIdentifier.self)
+        
+        measure {
+            do {
+                let num = 134890024502403
+                _ = try parser.parse("\(num)")
+            }
+            catch {
+                XCTFail()
+            }
+        }
+        
+    }
+    
 }
 
 // MARK: RULES

@@ -126,7 +126,7 @@ extension ItemSet : Node {
         }) as Set<G.Symbol.RawValue?>
         let rules = try reduceRules()
         if !terms.intersection(rules.keys).isEmpty {
-            throw ShiftReduceConflict()
+            throw ASTError.parserGeneration(.shiftReduceConflict)
         }
         if exprs.isEmpty {
             return [:]
@@ -176,7 +176,7 @@ extension ItemSet {
             if val1.rule == val2.rule && val1.meta == val2.meta {
                 return val1
             }
-            throw ReduceReduceConflict(meta1: val1.meta, meta2: val2.meta, rule1: val1.rule, rule2: val2.rule)
+            throw ASTError.parserGeneration(.reduceReduceConflict(meta1: val1.meta, meta2: val2.meta, rule1: val1.rule, rule2: val2.rule))
         }
     }
     
@@ -213,7 +213,7 @@ extension ItemSetTable {
                 }
                 else {
                     if dict[term]?[start] != nil {
-                        throw ShiftReduceConflict()
+                        throw ASTError.parserGeneration(.shiftReduceConflict)
                     }
                     dict[term]?[start] = .reduce(rule: rule, recognized: meta)
                 }
@@ -227,7 +227,7 @@ extension ItemSetTable {
                 }
                 else {
                     if dict[nil]?[start] != nil {
-                        throw AcceptConflict()
+                        throw ASTError.parserGeneration(.acceptConflict)
                     }
                     dict[nil]?[start] = .accept
                 }

@@ -5,56 +5,26 @@
 //  Created by Markus Kasperczyk on 29.10.23.
 //
 
-public struct ShiftReduceConflict : Error {}
-
-public struct AcceptConflict : Error {}
-
-public struct UndefinedState<Index> : Error {
-    let position : Index
+public enum ASTError : Error {
+    case parserGeneration(ParserGenerationError)
+    case parserDefinition(ParserDefinitionError)
+    case parserRuntime(ParserRuntimeError)
 }
 
-public struct UnexpectedChar<Symbol> : Error {
-    public let char : Symbol?
-    public let expecting : Set<String>
+public enum ParserGenerationError {
+    case shiftReduceConflict
+    case reduceReduceConflict(meta1: String, meta2: String, rule1: String, rule2: String)
+    case acceptConflict
 }
 
-public struct InvalidChar<Index, Symbol> : Error {
-    public let position : Index
-    public let char : Symbol?
+public enum ParserDefinitionError {
+    case undefinedState
+    case noGoto(nonTerminal: String, state: Int)
+    case noAction(terminal: String, state: Int)
+    case unknownRule(metaType: String, rule: String)
 }
 
-public struct NoGoTo : Error {
-    public let nonTerm : String
-    public let state : Int
-}
-
-public struct ReduceReduceConflict : Error {
-    public let meta1 : String
-    public let meta2 : String
-    public let rule1 : String
-    public let rule2 : String
-}
-
-public struct UnknownRule : Error {
-    public let metaType : String
-    public let rule : String
-}
-
-public struct ParserDefinitionError : Error {
-    public let goal : String
-    public let kind : Kind
-    public enum Kind {
-        case notDefined
-        case multiplyDefined
-    }
-}
-
-public struct UnexpectedType : Error {
-    public let given : Any
-    public let expected : Any.Type
-}
-
-public struct UnexpectedSymbol<Symb : SymbolProtocol> : Error {
-    public let got : Symb
-    public let expected : Symb.RawValue
+public enum ParserRuntimeError {
+    case unexpectedSymbol(String, expecting: [String])
+    case stackCorrupted(popped: Any, expecting: String)
 }

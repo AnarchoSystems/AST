@@ -49,10 +49,12 @@ public class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprPropert
     }
     var wrapped : Meta?
     public func inject(_ any: Any) throws {
-        guard let meta = any as? Meta else {
-            throw UnexpectedType(given: any, expected: Meta.self)
+        do {
+            guard let meta = any as? Meta else {
+                throw ASTError.parserRuntime(.stackCorrupted(popped: any, expecting: String(describing: type(of: any).self)))
+            }
+            wrapped = meta
         }
-        wrapped = meta
     }
     public var wrappedValue : Meta {
         _read
@@ -76,7 +78,7 @@ public class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
     var wrapped : Symbol?
     public func inject(_ symb: Symbol) throws {
         guard symb.rawValue == checkSymbol else {
-            throw UnexpectedSymbol(got: symb, expected: checkSymbol)
+            throw ASTError.parserRuntime(.stackCorrupted(popped: symb, expecting: String(describing: checkSymbol)))
         }
         wrapped = symb
     }

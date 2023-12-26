@@ -42,7 +42,8 @@ private extension Parser {
             }
             nextStates = nextNextStates
         }
-        return UnexpectedChar(char: current, expecting: Set(nonTerms))
+        return ASTError.parserRuntime(.unexpectedSymbol(current.map(String.init(describing:)) ?? "",
+                                                        expecting: Array(Set(nonTerms))))
     }
     
 }
@@ -82,10 +83,10 @@ extension Parser {
             while true {
                 
                 guard let (stateBefore, _, _) = stateStack.peek() else {
-                    throw UndefinedState(position: index)
+                    throw ASTError.parserDefinition(.undefinedState)
                 }
                 guard let dict = actions[current?.rawValue] else {
-                    throw InvalidChar(position: index, char: current)
+                    throw ASTError.parserDefinition(.noAction(terminal: current.map(String.init(describing:)) ?? "", state: stateBefore))
                 }
                 guard let action = dict[stateBefore] else {
                     let parent = stateBefore
@@ -101,7 +102,7 @@ extension Parser {
                     
                 case .reduce(let rule, let metaType):
                     guard let ru = grammar.rules[metaType]?[rule] else {
-                        throw UnknownRule(metaType: metaType, rule: rule)
+                        throw ASTError.parserDefinition(.unknownRule(metaType: metaType, rule: rule))
                     }
                     for (_, rhs) in Mirror(reflecting: ru).children.reversed() {
                         
@@ -109,26 +110,26 @@ extension Parser {
                            let toInject = stack.pop() {
                             try child.inject(toInject)
                             guard nil != stateStack.pop() else {
-                                throw UndefinedState(position: index)
+                                throw ASTError.parserDefinition(.undefinedState)
                             }
                         }
                         
                         else if let child = rhs as? _Terminal<G.Symbol> {
                             guard let (_, char, _) = stateStack.pop(), let char = char else {
-                                throw UndefinedState(position: index)
+                                throw ASTError.parserDefinition(.undefinedState)
                             }
                             try child.inject(char)
                         }
                         
                     }
                     guard let (stateAfter, _, oldState) = stateStack.peek() else {
-                        throw UndefinedState(position: index)
+                        throw ASTError.parserDefinition(.undefinedState)
                     }
                     
                     let context = G.Context.span(from: oldState, to: state, stream: stream)
                     try stack.push(ru._onRecognize(context))
                     
-                    guard let nextState = gotos[metaType]?[stateAfter] else {throw NoGoTo(nonTerm: metaType, state: stateAfter)}
+                    guard let nextState = gotos[metaType]?[stateAfter] else {throw ASTError.parserDefinition(.noGoto(nonTerminal: metaType, state: stateAfter))}
                     stateStack.push((nextState, current, state))
                     
                 case .accept:
