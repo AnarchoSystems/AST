@@ -20,7 +20,7 @@ fileprivate extension Grammar {
                 var newNTermsToLookAt : Set<String> = []
                 for nT in nTermsToLookAt {
                     for rule in rules[nT]?.values ?? [:].values {
-                        guard let next = Mirror(reflecting: rule).children.first(where: {$1 is Injectable || $1 is _Terminal<Symbol>})?.value else {
+                        guard let next = recursiveChildren(rule).first(where: {$0 is Injectable || $0 is _Terminal<Symbol>}) else {
                             results.insert(nil)
                             continue
                         }
@@ -42,6 +42,9 @@ fileprivate extension Grammar {
         case .eof:
             return [nil]
         }
+    }
+    private func recursiveChildren(_ any: Any) -> [Any] {
+        Mirror(reflecting: any).children.flatMap{[$1] + recursiveChildren($1)}
     }
 }
 
@@ -77,7 +80,7 @@ fileprivate struct Item<G : Grammar> : Node {
         var values : [Item] = []
         
         for rule in lookup.G.rules[nT]?.values ?? [:].values {
-            let all : [Expr] = Mirror(reflecting: rule).children.compactMap{($1 as? any ExprProperty<G.Symbol.RawValue>)?.expr}
+            let all : [Expr] = allExprs(rule)
             values.append(Item(rule: rule.ruleName,
                                meta: rule.typeName,
                                all: all,
@@ -86,6 +89,17 @@ fileprivate struct Item<G : Grammar> : Node {
         }
         
         return [nT : values]
+    }
+    
+    private func allExprs(_ any: Any) -> [Expr<G.Symbol.RawValue>] {
+        Mirror(reflecting: any).children.flatMap {
+            if let child = $1 as? any ExprProperty<G.Symbol.RawValue> {
+                [child.expr]
+            }
+            else {
+                allExprs($1)
+            }
+        }
     }
     
 }

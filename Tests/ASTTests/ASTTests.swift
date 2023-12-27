@@ -67,6 +67,12 @@ final class ASTTests: XCTestCase {
         
     }
     
+    func testOptional() throws {
+        let parser = try Parser.CLR1(rules: OptionGrammar(), goal: Success.self)
+        try XCTAssertNotNil(parser.parse(""))
+        try XCTAssertNotNil(parser.parse("A"))
+    }
+    
     func testPerformance() throws {
         
         let parser = try Parser.CLR1(rules: Rules(), goal: IntOrIdentifier.self)
@@ -83,6 +89,28 @@ final class ASTTests: XCTestCase {
         
     }
     
+}
+
+// MARK: UTILS TESTS
+
+struct OptionGrammar : Grammar {
+    let allRules : [any Rule<Context>] = [OptRule(), MakeOptional<Letter, Context>(), ARule(), Zero<Letter, Context>()]
+}
+
+struct Success : ASTNode {}
+
+struct OptRule : Rule {
+    @NonTerminal var opt : Letter?
+    func onRecognize(context: Context) throws -> some ASTNode {
+        Success()
+    }
+}
+
+struct ARule : Rule {
+    @Terminal var a = "A"
+    func onRecognize(context: Context) throws -> some ASTNode {
+        try Letter(char: a)
+    }
 }
 
 // MARK: RULES
@@ -117,22 +145,11 @@ struct DigitOrLetter : ASTNode {
 }
 
 extension Int : ASTNode {
-    init(_ oneNine: OneNine, _ digits: Digits) throws {
-        guard let int = Int(String(oneNine.char) + digits.digits.map(\.char)) else {
+    init(_ oneNine: OneNine, _ digits: [Digit]) throws {
+        guard let int = Int(String(oneNine.char) + digits.map(\.char)) else {
             throw NSError()
         }
         self = int
-    }
-}
-
-struct Digits : ASTNode {
-    var digits : [Digit]
-    init(digit: Digit) {
-        self.digits = [digit]
-    }
-    init(digits: inout Digits, newDigit: Digit) {
-        digits.digits.append(newDigit)
-        self = digits
     }
 }
 
@@ -287,38 +304,17 @@ struct DigitIsDigitOrLetter : Rule {
 
 extension Rules {
     
-    var numberRecursion : [any Rule<Context>] { [DigitDigits(), DigitDigitsDigits(), NumberRecognizer()] }
+    var numberRecursion : [any Rule<Context>] { [FirstElem<Digit, Context>(), Repeat<Digit, Context>(), NumberRecognizer()] }
     
 }
 
 struct NumberRecognizer : Rule {
     
     @NonTerminal var oneNine : OneNine
-    @NonTerminal var digits : Digits
+    @NonTerminal var digits : [Digit]
     
     func onRecognize(context: Context) throws ->  Int {
         try Int(oneNine, digits)
-    }
-    
-}
-
-struct DigitDigitsDigits : Rule {
-    
-    @NonTerminal var digits : Digits
-    @NonTerminal var digit : Digit
-    
-    func onRecognize(context: Context) throws ->  some ASTNode {
-        Digits(digits: &digits, newDigit: digit)
-    }
-    
-}
-
-struct DigitDigits : Rule {
-    
-    @NonTerminal var digit : Digit
-    
-    func onRecognize(context: Context) throws ->  some ASTNode {
-        Digits(digit: digit)
     }
     
 }

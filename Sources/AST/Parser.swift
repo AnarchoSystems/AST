@@ -74,6 +74,31 @@ public extension Parser {
 
 extension Parser {
     
+    private func inject(_ stack: inout Stack<any ASTNode>, _ stateStack: inout Stack<(Int, G.Symbol?, G.Context.State)>, into anything: Any) throws {
+        for (_, rhs) in Mirror(reflecting: anything).children.reversed() {
+            
+            if let child = rhs as? Injectable,
+               let toInject = stack.pop() {
+                try child.inject(toInject)
+                guard nil != stateStack.pop() else {
+                    throw ASTError.parserDefinition(.undefinedState)
+                }
+            }
+            
+            else if let child = rhs as? _Terminal<G.Symbol> {
+                guard let (_, char, _) = stateStack.pop(), let char = char else {
+                    throw ASTError.parserDefinition(.undefinedState)
+                }
+                try child.inject(char)
+            }
+            
+            else {
+                try inject(&stack, &stateStack, into: rhs)
+            }
+            
+        }
+    }
+    
     public func parse<C : Collection>(_ stream: C) throws -> Goal? where C.Element == G.Context.State.Symbol {
         var rule : (any ASTNode)?
         
@@ -114,24 +139,7 @@ extension Parser {
                     guard let ru = grammar.rules[metaType]?[rule] else {
                         throw ASTError.parserDefinition(.unknownRule(metaType: metaType, rule: rule))
                     }
-                    for (_, rhs) in Mirror(reflecting: ru).children.reversed() {
-                        
-                        if let child = rhs as? Injectable,
-                           let toInject = stack.pop() {
-                            try child.inject(toInject)
-                            guard nil != stateStack.pop() else {
-                                throw ASTError.parserDefinition(.undefinedState)
-                            }
-                        }
-                        
-                        else if let child = rhs as? _Terminal<G.Symbol> {
-                            guard let (_, char, _) = stateStack.pop(), let char = char else {
-                                throw ASTError.parserDefinition(.undefinedState)
-                            }
-                            try child.inject(char)
-                        }
-                        
-                    }
+                    try inject(&stack, &stateStack, into: ru)
                     guard let (stateAfter, _, oldState) = stateStack.peek() else {
                         throw ASTError.parserDefinition(.undefinedState)
                     }
