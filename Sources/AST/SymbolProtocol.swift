@@ -8,7 +8,7 @@
 import Foundation
 
 public protocol SymbolProtocol {
-    associatedtype RawValue : Hashable & Codable
+    associatedtype RawValue : Hashable & Codable & LosslessStringConvertible
     var rawValue : RawValue {get}
 }
 

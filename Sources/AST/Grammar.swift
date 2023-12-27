@@ -8,7 +8,6 @@
 public protocol Grammar {
     associatedtype Context : ContextProtocol
     var allRules : [any Rule<Context>] {get}
-    init()
 }
 
 public extension Grammar {

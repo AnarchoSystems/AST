@@ -5,15 +5,26 @@
 //  Created by Markus Kasperczyk on 29.10.23.
 //
 
-public struct Parser<G : Grammar, Goal : ASTNode> : Codable, Equatable {
-    
+public struct ParserTables<G : Grammar> : Equatable, Codable {
     public let actions : [G.Symbol.RawValue? : [Int : Action]]
     public let gotos : [String : [Int : Int]]
+}
+
+public struct Parser<G : Grammar, Goal : ASTNode> {
     
-    public init(actions: [G.Symbol.RawValue? : [Int : Action]],
-                gotos: [String : [Int : Int]]) {
-        self.actions = actions
-        self.gotos = gotos
+    public let tables : ParserTables<G>
+    public let grammar : G
+    
+    public init(tables: ParserTables<G>, grammar: G) {
+        self.tables = tables
+        self.grammar = grammar
+    }
+    
+    public var actions : [G.Symbol.RawValue? : [Int : Action]] {
+        tables.actions
+    }
+    public var gotos : [String : [Int : Int]] {
+        tables.gotos
     }
     
 }
@@ -73,7 +84,6 @@ extension Parser {
         
         stateStack.push((0, nil, state))
         
-        let grammar = G()
         
     iterateIndices:
         for index in Array(stream.indices) + [stream.endIndex] {

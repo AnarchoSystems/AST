@@ -152,14 +152,13 @@ fileprivate struct ItemSetTable<G : Grammar, Goal : ASTNode> {
     
     let graph : ClosedGraph<ItemSet<G>>
     
-    init(rules: G.Type, goal: Goal.Type) throws {
-        let G = G()
+    init(rules: G, goal: Goal.Type) throws {
         let augmentedRule = Item<G>(rule: nil,
                                         meta: "",
                                         all: [.nonTerm(Goal.typeDescription)],
                                         lookAheads: [nil],
                                         ptr: 0)
-        var lookup = ItemSet<G>.Lookup(nodeLookup: .init(G: G, firsts: [:]), seedLookup: [:])
+        var lookup = ItemSet<G>.Lookup(nodeLookup: .init(G: rules, firsts: [:]), seedLookup: [:])
         let itemSetGraph = try ClosedGraph(seeds: [augmentedRule], lookup: &lookup.nodeLookup)
         graph = try ClosedGraph(seeds: [ItemSet(graph: itemSetGraph)], lookup: &lookup)
     }
@@ -252,10 +251,11 @@ extension ItemSetTable {
 
 public extension Parser {
     
-    static func CLR1(rules: G.Type, goal: Goal.Type) throws -> Self {
+    static func CLR1(rules: G, goal: Goal.Type) throws -> Self {
         let table = try ItemSetTable(rules: rules, goal: goal)
-        return Parser(actions: try table.actionTable(),
-                      gotos: table.gotoTable)
+        return Parser(tables: ParserTables(actions: try table.actionTable(),
+                                           gotos: table.gotoTable),
+                      grammar: rules)
     }
     
 }

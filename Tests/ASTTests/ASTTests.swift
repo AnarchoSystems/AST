@@ -5,7 +5,7 @@ final class ASTTests: XCTestCase {
     
     func testIdOrInt() throws {
         
-        let parser = try Parser.CLR1(rules: Rules.self, goal: IntOrIdentifier.self)
+        let parser = try Parser.CLR1(rules: Rules(), goal: IntOrIdentifier.self)
         
         let num = 134890024502403
         try XCTAssertEqual(parser.parse("\(num)"), .integer(num))
@@ -19,7 +19,7 @@ final class ASTTests: XCTestCase {
     
     func testInt() throws {
         
-        let parser = try Parser.CLR1(rules: Rules.self, goal: Int.self)
+        let parser = try Parser.CLR1(rules: Rules(), goal: Int.self)
         
         for num in [124050, 130480, 300950480, 1023840209, 38239840831049804, 190480948] {
             
@@ -31,7 +31,7 @@ final class ASTTests: XCTestCase {
     
     func testIdentifier() throws {
         
-        let parser = try Parser.CLR1(rules: Rules.self, goal: Identifier.self)
+        let parser = try Parser.CLR1(rules: Rules(), goal: Identifier.self)
         
         for str in ["a1253ga325346", "efaghlkhgklnalrk", "AFEALFKHafhs", "ohIAEFho2345sfdh"] {
             try XCTAssertEqual(parser.parse(str), Identifier(string: str))
@@ -45,23 +45,23 @@ final class ASTTests: XCTestCase {
     
     func testDigit() throws {
         
-        let parser = try Parser.CLR1(rules: Rules.self, goal: Digit.self)
+        let parser = try Parser.CLR1(rules: Rules(), goal: Digit.self)
         
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
-        let data = try encoder.encode(parser)
+        let data = try encoder.encode(parser.tables)
         
         print(String(data: data, encoding: .utf8)!)
         
-        let newParser = try JSONDecoder().decode(Parser<Rules, Digit>.self, from: data)
+        let newParser = try JSONDecoder().decode(ParserTables<Rules>.self, from: data)
         
-        XCTAssertEqual(parser, newParser)
+        XCTAssertEqual(parser.tables, newParser)
         
     }
     
     func testList() throws {
         
-        let parser = try Parser.CLR1(rules: ListGrammar.self, goal: CommaSeparatedexpressions.self)
+        let parser = try Parser.CLR1(rules: ListGrammar(), goal: CommaSeparatedexpressions.self)
         
         try XCTAssertEqual(parser.parse("a,b,a")?.exprs.map(\.char), ["a", "b", "a"])
         
@@ -69,7 +69,7 @@ final class ASTTests: XCTestCase {
     
     func testPerformance() throws {
         
-        let parser = try Parser.CLR1(rules: Rules.self, goal: IntOrIdentifier.self)
+        let parser = try Parser.CLR1(rules: Rules(), goal: IntOrIdentifier.self)
         
         measure {
             do {
