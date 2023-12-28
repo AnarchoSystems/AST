@@ -1,31 +1,9 @@
 //
-//  Rule.swift
-//  
+//  PropertyWrappers.swift
 //
-//  Created by Markus Kasperczyk on 02.11.23.
 //
-
-public protocol Rule<Context> {
-    associatedtype Context : ContextProtocol
-    var ruleName : String {get}
-    associatedtype MetaType : ASTNode
-    func onRecognize(context: Context) throws -> MetaType
-}
-
-extension Rule {
-    func _onRecognize(_ any: Any) throws -> MetaType {
-        try onRecognize(context: any as! Context)
-    }
-}
-
-public extension Rule {
-    var ruleName : String {
-        String(describing: Self.self)
-    }
-    var typeName : String {
-        MetaType.typeDescription
-    }
-}
+//  Created by Markus Kasperczyk on 28.12.23.
+//
 
 // MARK: Property Wrappers
 
@@ -63,7 +41,7 @@ public class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprPropert
         }
         _modify
         {
-           yield &wrapped!
+            yield &wrapped!
         }
     }
     public init() {}
@@ -89,7 +67,7 @@ public class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
         }
         _modify
         {
-           yield &wrapped!
+            yield &wrapped!
         }
     }
     public init(_ check: Symbol.RawValue) {
@@ -104,8 +82,43 @@ public class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
     }
 }
 
-public extension Rule {
+public extension Constructor {
     typealias NonTerminal<Meta : ASTNode> = _NonTerminal<Context.State.Symbol, Meta>
     typealias Terminal = _Terminal<Context.State.Symbol>
 }
 
+protocol CaseProtocol<Ctx, MetaType> {
+    associatedtype Ctx : ContextProtocol
+    associatedtype MetaType : ASTNode
+    var constructor : any Constructor<Ctx, MetaType> {get}
+}
+
+@propertyWrapper
+public struct _Case<R : Constructor> : CaseProtocol {
+    typealias Ctx = R.Ctx
+    typealias MetaType = R.MetaType
+    public let wrappedValue : R
+    public init(wrappedValue: R) {
+        self.wrappedValue = wrappedValue
+    }
+    var constructor: any Constructor<R.Ctx, R.MetaType> {
+        wrappedValue
+    }
+}
+
+public extension Constructors {
+    typealias Case<R : Constructor> = _Case<R> where R.MetaType == Output, R.Ctx == Ctx
+    var allConstructors : [any Constructor<Ctx, Output>] {
+        Mirror(reflecting: self).children.compactMap{($1 as? any CaseProtocol<Ctx, Output>)?.constructor}
+    }
+}
+
+public struct ConstructorList<Output : ASTNode, Ctx : ContextProtocol> : Constructors {
+    public let allConstructors: [any Constructor<Ctx, Output>]
+    public init(_ allConstructors: [any Constructor<Ctx, Output>]) {
+        self.allConstructors = allConstructors
+    }
+    public init(_ constructors: (any Constructor<Ctx, Output>)...) {
+        self = .init(constructors)
+    }
+}

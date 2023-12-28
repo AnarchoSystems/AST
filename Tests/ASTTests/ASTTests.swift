@@ -94,21 +94,34 @@ final class ASTTests: XCTestCase {
 // MARK: UTILS TESTS
 
 struct OptionGrammar : Grammar {
-    let allRules : [any Rule<Context>] = [OptRule(), MakeOptional<Letter, Context>(), ARule(), Zero<Letter, Context>()]
+    let constructors : [any Constructors<Context>] = [SuccessRules(), Maybe<Letter, Context>(), ARules()]
+    
+    struct SuccessRules : Constructors {
+        typealias Output = Success
+        typealias Ctx = Context
+        @Case var opt = OptRule()
+    }
+    
+    struct ARules : Constructors {
+        typealias Output = Letter
+        typealias Ctx = Context
+        @Case var a = ARule()
+    }
+    
 }
 
 struct Success : ASTNode {}
 
-struct OptRule : Rule {
+struct OptRule : Constructor {
     @NonTerminal var opt : Letter?
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Success {
         Success()
     }
 }
 
-struct ARule : Rule {
+struct ARule : Constructor {
     @Terminal var a = "A"
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Letter {
         try Letter(char: a)
     }
 }
@@ -117,11 +130,11 @@ struct ARule : Rule {
 
 struct Rules : Grammar {
     
-    typealias Context = AST.Context
+    typealias Ctx = AST.Context
     
-    var allRules : [any Rule<Context>] { idOrInt + identifierRecursion + numberRecursion + lowerLevel}
+    var constructors : [any Constructors<Ctx>] {idOrInt + identifierRecursion + numberRecursion + lowerLevel}
     
-    var lowerLevel : [any Rule<Context>] { digitsOrLetters + letter + digit + oneNine }
+    var lowerLevel : [any Constructors<Ctx>] { digitsOrLetters + letter + digit + oneNine }
     
 }
 
@@ -187,27 +200,27 @@ struct OneNine : ASTNode {
 
 extension Rules {
     
-    var idOrInt : [any Rule<Context>] { [IdentifierIDOrInt(), IntIDOrInt()] }
+    var idOrInt : [any Constructors<Ctx>] { [ConstructorList(IdentifierIDOrInt(), IntIDOrInt())] }
     
 }
 
-struct IntIDOrInt : Rule {
+struct IntIDOrInt : Constructor {
     
     @NonTerminal
     var int : Int
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> IntOrIdentifier {
         IntOrIdentifier.integer(int)
     }
     
 }
 
-struct IdentifierIDOrInt : Rule {
+struct IdentifierIDOrInt : Constructor {
     
     @NonTerminal
     var id : Identifier
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> IntOrIdentifier {
         IntOrIdentifier.identifier(id)
     }
     
@@ -217,11 +230,11 @@ struct IdentifierIDOrInt : Rule {
 
 extension Rules {
     
-    var identifierRecursion : [any Rule<Context>] { [LetterIdentifier(), LetterDigitsOrLettersIsIdentifier()] }
+    var identifierRecursion : [any Constructors<Ctx>] { [ConstructorList(LetterIdentifier(), LetterDigitsOrLettersIsIdentifier())] }
     
 }
 
-struct LetterDigitsOrLettersIsIdentifier : Rule {
+struct LetterDigitsOrLettersIsIdentifier : Constructor {
     
     @NonTerminal
     var letter : Letter
@@ -229,18 +242,18 @@ struct LetterDigitsOrLettersIsIdentifier : Rule {
     @NonTerminal
     var digitsOrLetters : DigitsOrLetters
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Identifier {
         return Identifier(string: String(letter.char) + digitsOrLetters.string) // slow...
     }
     
 }
 
-struct LetterIdentifier : Rule {
+struct LetterIdentifier : Constructor {
     
     @NonTerminal
     var letter : Letter
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Identifier {
         Identifier(string: String(letter.char))
     }
     
@@ -250,11 +263,11 @@ struct LetterIdentifier : Rule {
 
 extension Rules {
     
-    var digitsOrLetters : [any Rule<Context>] { [DigitsOrLettersRecursion(), DigitIsDigitOrLetter(), LetterIsDigitOrLetter(), DigitOrLetterIsDigitsOrLetters()] }
+    var digitsOrLetters : [any Constructors<Ctx>] { [ConstructorList(DigitsOrLettersRecursion(), DigitOrLetterIsDigitsOrLetters()), ConstructorList(LetterIsDigitOrLetter(),DigitIsDigitOrLetter())] }
     
 }
 
-struct DigitsOrLettersRecursion : Rule {
+struct DigitsOrLettersRecursion : Constructor {
     
     @NonTerminal
     var known : DigitsOrLetters
@@ -262,39 +275,39 @@ struct DigitsOrLettersRecursion : Rule {
     @NonTerminal
     var new : DigitOrLetter
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> DigitsOrLetters {
         known.string.append(new.char)
         return known
     }
     
 }
 
-struct DigitOrLetterIsDigitsOrLetters : Rule {
+struct DigitOrLetterIsDigitsOrLetters : Constructor {
     
     @NonTerminal
     var digitOrLetter : DigitOrLetter
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> DigitsOrLetters {
         DigitsOrLetters(string: String(digitOrLetter.char))
     }
     
 }
 
-struct LetterIsDigitOrLetter : Rule {
+struct LetterIsDigitOrLetter : Constructor {
     
     @NonTerminal var letter : Letter
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> DigitOrLetter {
         DigitOrLetter(char: letter.char)
     }
     
 }
 
-struct DigitIsDigitOrLetter : Rule {
+struct DigitIsDigitOrLetter : Constructor {
     
     @NonTerminal var digit : Digit
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> DigitOrLetter {
         DigitOrLetter(char: digit.char)
     }
     
@@ -304,11 +317,11 @@ struct DigitIsDigitOrLetter : Rule {
 
 extension Rules {
     
-    var numberRecursion : [any Rule<Context>] { [FirstElem<Digit, Context>(), Repeat<Digit, Context>(), NumberRecognizer()] }
+    var numberRecursion : [any Constructors<Ctx>] { [NonEmptyListRecognizer<Digit, Ctx>(), ConstructorList(NumberRecognizer())] }
     
 }
 
-struct NumberRecognizer : Rule {
+struct NumberRecognizer : Constructor {
     
     @NonTerminal var oneNine : OneNine
     @NonTerminal var digits : [Digit]
@@ -323,13 +336,21 @@ struct NumberRecognizer : Rule {
 
 extension Rules {
     
-    var letter : [any Rule<Context>] { ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
-                               "k", "K", "l", "L", "m", "M", "n", "N", "o", "O", "p", "P", "q", "Q", "r", "R", "s", "S", "t", "T", "u", "U", "v", "V",
-                               "w", "W", "x", "X", "y", "Y", "z", "Z"].map(LetterRecognizer.init) }
+    var letter : [any Constructors<Ctx>] { [LetterRules()] }
+    
+    struct LetterRules : Constructors {
+        typealias Ctx = Context
+        typealias Output = Letter
+        var allConstructors: [any Constructor<Rules.Ctx, Letter>] {
+            ["a", "A", "b", "B", "c", "C", "d", "D", "e", "E", "f", "F", "g", "G", "h", "H", "i", "I", "j", "J",
+                                       "k", "K", "l", "L", "m", "M", "n", "N", "o", "O", "p", "P", "q", "Q", "r", "R", "s", "S", "t", "T", "u", "U", "v", "V",
+                                       "w", "W", "x", "X", "y", "Y", "z", "Z"].map(LetterRecognizer.init)
+        }
+    }
     
 }
 
-struct LetterRecognizer : Rule {
+struct LetterRecognizer : Constructor {
     
     var ruleName: String {
         "Letter \(char)"
@@ -337,7 +358,7 @@ struct LetterRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(context: Context) throws ->  some ASTNode {
+    func onRecognize(context: Context) throws -> Letter {
         try Letter(char: char)
     }
     
@@ -347,11 +368,19 @@ struct LetterRecognizer : Rule {
 
 extension Rules {
     
-    var digit : [any Rule<Context>] { (0...9).map(String.init).compactMap(\.first).map(DigitRecognizer.init) }
+    var digit : [any Constructors<Ctx>] { [DigitRules()] }
+    
+    struct DigitRules : Constructors {
+        typealias Ctx = Context
+        typealias Output = Digit
+        var allConstructors: [any Constructor<Rules.Ctx, Digit>] {
+            (0...9).map(String.init).compactMap(\.first).map(DigitRecognizer.init)
+        }
+    }
     
 }
 
-struct DigitRecognizer : Rule {
+struct DigitRecognizer : Constructor {
     
     var ruleName: String {
         "Digit \(char)"
@@ -359,7 +388,7 @@ struct DigitRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(context: Context) throws ->  some ASTNode {
+    func onRecognize(context: Context) throws -> Digit {
         try Digit(char: char)
     }
     
@@ -369,11 +398,19 @@ struct DigitRecognizer : Rule {
 
 extension Rules {
     
-    var oneNine : [any Rule<Context>] { (1...9).map(String.init).compactMap(\.first).map(OneNineRecognizer.init) }
+    var oneNine : [any Constructors<Ctx>] { [OneNineRules()] }
+    
+    struct OneNineRules : Constructors {
+        typealias Ctx = Context
+        typealias Output = OneNine
+        var allConstructors: [any Constructor<Ctx, OneNine>] {
+            (1...9).map(String.init).compactMap(\.first).map(OneNineRecognizer.init)
+        }
+    }
     
 }
 
-struct OneNineRecognizer : Rule {
+struct OneNineRecognizer : Constructor {
     
     var ruleName: String {
         "OneNine \(char)"
@@ -381,7 +418,7 @@ struct OneNineRecognizer : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> OneNine {
         try OneNine(char: char)
     }
     
@@ -399,7 +436,7 @@ struct CommaSeparatedexpressions : ASTNode {
 
 // MARK: List Rules
 
-struct RecNextIsList : Rule {
+struct RecNextIsList : Constructor {
     
     @NonTerminal
     var recognized : CommaSeparatedexpressions
@@ -409,33 +446,33 @@ struct RecNextIsList : Rule {
     @NonTerminal
     var next : Expression
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
         recognized.exprs.append(next)
         return recognized
     }
     
 }
 
-struct EmptyIsList : Rule {
+struct EmptyIsList : Constructor {
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
         CommaSeparatedexpressions(exprs: [])
     }
     
 }
 
-struct ExprIsList : Rule {
+struct ExprIsList : Constructor {
     
     @NonTerminal
     var expr : Expression
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
         CommaSeparatedexpressions(exprs: [expr])
     }
     
 }
 
-struct CharIsExpr : Rule {
+struct CharIsExpr : Constructor {
     
     var ruleName: String {
         "Char \(char)"
@@ -443,7 +480,7 @@ struct CharIsExpr : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Expression {
         Expression(char: char)
     }
     
@@ -452,7 +489,21 @@ struct CharIsExpr : Rule {
 // MARK: List Grammar
 
 struct ListGrammar : Grammar {
-    var allRules: [any Rule<Context>] {
-        ["a", "b", "c"].map(CharIsExpr.init) + [RecNextIsList(), EmptyIsList(), ExprIsList()]
+    var constructors: [any Constructors<Context>] {
+        [ExprRules(), ListRules()]
+    }
+    struct ExprRules : Constructors {
+        typealias Output = Expression
+        typealias Ctx = Context
+        @Case var a = CharIsExpr(char: "a")
+        @Case var b = CharIsExpr(char: "b")
+        @Case var c = CharIsExpr(char: "c")
+    }
+    struct ListRules : Constructors {
+        typealias Output = CommaSeparatedexpressions
+        typealias Ctx = Context
+        @Case var recursion = RecNextIsList()
+        @Case var empty = EmptyIsList()
+        @Case var expr = ExprIsList()
     }
 }

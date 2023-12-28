@@ -59,7 +59,7 @@ private extension Parser {
     
 }
 
-public extension Rule {
+public extension Constructor {
     var kind : String {
         String(describing: Self.self)
     }
@@ -74,7 +74,7 @@ public extension Parser {
 
 extension Parser {
     
-    private func inject(_ stack: inout Stack<any ASTNode>, _ stateStack: inout Stack<(Int, G.Symbol?, G.Context.State)>, into anything: Any) throws {
+    private func inject(_ stack: inout Stack<any ASTNode>, _ stateStack: inout Stack<(Int, G.Symbol?, G.Ctx.State)>, into anything: Any) throws {
         for (_, rhs) in Mirror(reflecting: anything).children.reversed() {
             
             if let child = rhs as? Injectable,
@@ -99,13 +99,13 @@ extension Parser {
         }
     }
     
-    public func parse<C : Collection>(_ stream: C) throws -> Goal? where C.Element == G.Context.State.Symbol {
+    public func parse<C : Collection>(_ stream: C) throws -> Goal? where C.Element == G.Ctx.State.Symbol {
         var rule : (any ASTNode)?
         
-        var stateStack = Stack<(Int, G.Symbol?, G.Context.State)>()
+        var stateStack = Stack<(Int, G.Symbol?, G.Ctx.State)>()
         var stack = Stack<any ASTNode>()
         
-        var state = G.Context.State()
+        var state = G.Ctx.State()
         
         stateStack.push((0, nil, state))
         
@@ -144,8 +144,8 @@ extension Parser {
                         throw ASTError.parserDefinition(.undefinedState)
                     }
                     
-                    let context = G.Context.span(from: oldState, to: state, stream: stream)
-                    try stack.push(ru._onRecognize(context))
+                    let context = G.Ctx.span(from: oldState, to: state, stream: stream)
+                    try stack.push(ru._onRecognize(any: context))
                     
                     guard let nextState = gotos[metaType]?[stateAfter] else {throw ASTError.parserDefinition(.noGoto(nonTerminal: metaType, state: stateAfter))}
                     stateStack.push((nextState, current, state))

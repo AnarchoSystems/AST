@@ -119,7 +119,7 @@ extension Item {
     func tryAdvance(_ expr: Expr<G.Symbol.RawValue>) -> Item<G>? {
         tbd.first.flatMap{$0 == expr ? Item(rule: rule, meta: meta, all: all, lookAheads: lookAheads, ptr: ptr + 1) : nil}
     }
-    var tbd : some Collection<Expr<G.Context.State.Symbol.RawValue>> {
+    var tbd : some Collection<Expr<G.Ctx.State.Symbol.RawValue>> {
         all[ptr...]
     }
     

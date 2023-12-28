@@ -6,16 +6,35 @@
 //
 
 public protocol Grammar {
-    associatedtype Context : ContextProtocol
-    var allRules : [any Rule<Context>] {get}
+    associatedtype Ctx : ContextProtocol
+    var constructors : [any Constructors<Ctx>] {get}
+}
+
+public extension Constructors {
+    var erasedConstructors : [any Rule<Ctx>] {
+        allConstructors as [any Rule<Ctx>]
+    }
 }
 
 public extension Grammar {
-    typealias Symbol = Context.State.Symbol
-    var rules : [String : [String : any Rule]] {
-        Dictionary(allRules.map{rule in
-            return (rule.typeName, [rule.ruleName : rule])
-        }) {dict1, dict2 in dict1.merging(dict2) {_, _ in fatalError()}}
+    typealias Symbol = Ctx.State.Symbol
+    var rules : [String : [String : any Rule<Ctx>]] {
+        var rules = [(String, [String : any Rule<Ctx>])]()
+        for constructor in constructors {
+            for rule in constructor.erasedConstructors {
+                rules.append((rule.typeName, [rule.ruleName : rule as any Rule<Ctx>]))
+            }
+        }
+        var result = [String : [String : any Rule<Ctx>]]()
+        for (name, dict) in rules {
+            if result[name] == nil {
+                result[name] = dict
+            }
+            else {
+                result[name]?.merge(dict, uniquingKeysWith: {fatalError("Rule \($1.ruleName) is multiply defined!")})
+            }
+        }
+        return result
     }
     var allExprs : Set<Expr<Symbol.RawValue>> {
         var results = Set<Expr<Symbol.RawValue>>()
