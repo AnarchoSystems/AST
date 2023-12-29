@@ -22,6 +22,7 @@ public enum ParserDefinitionError {
     case noGoto(nonTerminal: String, state: Int)
     case noAction(terminal: String, state: Int)
     case unknownRule(metaType: String, rule: String)
+    case noOutput
 }
 
 public enum ParserRuntimeError {

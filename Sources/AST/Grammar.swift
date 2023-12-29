@@ -8,6 +8,11 @@
 public protocol Grammar {
     associatedtype Ctx : ContextProtocol
     var constructors : [any Constructors<Ctx>] {get}
+    var savePoints : Set<Ctx.State.Symbol.RawValue> {get}
+}
+
+public extension Grammar {
+    var savePoints : Set<Ctx.State.Symbol.RawValue> {[]}
 }
 
 public extension Constructors {

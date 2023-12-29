@@ -24,7 +24,7 @@ Let us declare the necessary rules for that:
 
 // List -> <List> ',' <Expr>
 
-struct RecNextIsList : Rule {
+struct RecNextIsList : Constructor {
     
     @NonTerminal
     var recognized : CommaSeparatedexpressions
@@ -34,9 +34,8 @@ struct RecNextIsList : Rule {
     @NonTerminal
     var next : Expression
     
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
-        recognized.exprs.append(next) // we used left recursion so this is basically O(1)
-                                      // note that we own the memory of "recognized"!
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
+        recognized.exprs.append(next)
         return recognized
     }
     
@@ -44,9 +43,9 @@ struct RecNextIsList : Rule {
 
 // List -> ''
 
-struct EmptyIsList : Rule {
+struct EmptyIsList : Constructor {
     
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
         CommaSeparatedexpressions(exprs: [])
     }
     
@@ -56,12 +55,13 @@ struct EmptyIsList : Rule {
 // we need this rule because we used left recursion and allow empty lists
 // without this rule our lists would have to look like ",a,b,a"
 
-struct ExprIsList : Rule {
+
+struct ExprIsList : Constructor {
     
     @NonTerminal
     var expr : Expression
     
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> CommaSeparatedexpressions {
         CommaSeparatedexpressions(exprs: [expr])
     }
     
@@ -69,7 +69,8 @@ struct ExprIsList : Rule {
 
 // Expr -> <any characters in our alphabet>
 
-struct CharIsExpr : Rule {
+
+struct CharIsExpr : Constructor {
     
     var ruleName: String {
         "Char \(char)" // we need to distinguish the rules for each character
@@ -77,11 +78,12 @@ struct CharIsExpr : Rule {
     
     @Terminal var char : Character
     
-    func onRecognize(in range: ClosedRange<String.Index>, context: Context) throws -> some ASTNode {
+    func onRecognize(context: Context) throws -> Expression {
         Expression(char: char)
     }
     
 }
+
 
 ```
 
@@ -89,10 +91,25 @@ We can now summarize the Rules into a Grammar:
 
 ```Swift
 struct ListGrammar : Grammar {
-    var allRules: [any Rule] {
-        ["a", "b", "c"].map(CharIsExpr.init) + [RecNextIsList(), EmptyIsList(), ExprIsList()]
+    var constructors: [any Constructors<Context>] {
+        [ExprRules(), ListRules()]
+    }
+    struct ExprRules : Constructors {
+        typealias Output = Expression
+        typealias Ctx = Context
+        @Case var a = CharIsExpr(char: "a")
+        @Case var b = CharIsExpr(char: "b")
+        @Case var c = CharIsExpr(char: "c")
+    }
+    struct ListRules : Constructors {
+        typealias Output = CommaSeparatedexpressions
+        typealias Ctx = Context
+        @Case var recursion = RecNextIsList()
+        @Case var empty = EmptyIsList()
+        @Case var expr = ExprIsList()
     }
 }
+
 ```
 
 And finally, let's run a test!
@@ -100,10 +117,11 @@ And finally, let's run a test!
 ```Swift
 
     func testList() throws {
+                
+        let parser = try Parser.CLR1(rules: ListGrammar(), goal: CommaSeparatedexpressions.self)
         
-        let parser = try Parser.CLR1(rules: ListGrammar.self, goal: CommaSeparatedexpressions.self)
+        try XCTAssertEqual(parser.parse("a,b,a").get().exprs.map(\.char), ["a", "b", "a"]) // works!
         
-        try XCTAssertEqual(parser.parse("a,b,a")?.exprs.map(\.char), ["a", "b", "a"]) //works!
         
     }
     
