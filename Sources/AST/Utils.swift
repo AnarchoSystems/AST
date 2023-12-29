@@ -20,7 +20,7 @@ public struct Some<N : ASTNode, Ctx : ContextProtocol> : Constructor {
         "some \(N.typeDescription)"
     }
     
-    @NonTerminal var node : N
+    @NonTerminal public var node : N
     
     public func onRecognize(context: Ctx) throws -> N? {
         Optional.some(node)
@@ -75,7 +75,7 @@ public struct FirstElem<N : ASTNode, Ctx : ContextProtocol> : Constructor {
     public var ruleName: String {
         "first element of \(N.typeDescription)"
     }
-    @NonTerminal var node : N
+    @NonTerminal public var node : N
     public func onRecognize(context: Ctx) throws -> [N] {
         [node]
     }
@@ -86,8 +86,8 @@ public struct Repeat<N: ASTNode, Ctx : ContextProtocol> : Constructor {
     public var ruleName: String {
         "repetition of \(N.typeDescription)"
     }
-    @NonTerminal var list : [N]
-    @NonTerminal var next : N
+    @NonTerminal public var list : [N]
+    @NonTerminal public var next : N
     public func onRecognize(context: Ctx) throws -> [N] {
         list.append(next)
         return list

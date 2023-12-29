@@ -21,7 +21,7 @@ public protocol HasTypeName {
 }
 
 @propertyWrapper
-public class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprProperty, Injectable, HasTypeName {
+public final class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprProperty, Injectable, HasTypeName {
     public var typeName: String {
         Meta.typeDescription
     }
@@ -44,6 +44,7 @@ public class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprPropert
             yield &wrapped!
         }
     }
+    public var projectedValue : _NonTerminal<Symbol, Meta> {self}
     public init() {}
     public var expr: Expr<Symbol.RawValue> {
         .nonTerm(typeName)
@@ -51,7 +52,7 @@ public class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprPropert
 }
 
 @propertyWrapper
-public class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
+public final class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
     public let checkSymbol : Symbol.RawValue
     var wrapped : Symbol?
     public func inject(_ symb: Symbol) throws {
@@ -70,6 +71,7 @@ public class _Terminal<Symbol : SymbolProtocol> : ExprProperty {
             yield &wrapped!
         }
     }
+    public var projectedValue : _Terminal<Symbol> {self}
     public init(_ check: Symbol.RawValue) {
         self.checkSymbol = check
     }

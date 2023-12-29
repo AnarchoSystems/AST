@@ -3,22 +3,25 @@
 
 import PackageDescription
 
-let package = Package(
-    name: "AST",
-    platforms: [.iOS(.v16), .macOS(.v13)],
-    products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "AST",
-            targets: ["AST"]),
-    ],
-    targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
-        .target(
-            name: "AST"),
-        .testTarget(
-            name: "ASTTests",
-            dependencies: ["AST"]),
-    ]
+let package = Package(name: "AST",
+                      platforms: [.iOS(.v16), .macOS(.v13)],
+                      products: [
+                        .library(name: "AST",
+                                 targets: ["AST"]),
+                      ],
+                      dependencies: [.package(url: "https://github.com/apple/swift-argument-parser.git",
+                                              from: Version(1, 3, 0))],
+                      targets: [
+                        .target(name: "AST"),
+                        .target(name: "TestGrammars",
+                                dependencies: ["AST"]),
+                        .executableTarget(name: "MakeTestGrammarSources",
+                                          dependencies: ["AST", "TestGrammars", .product(name: "ArgumentParser", package: "swift-argument-parser")]),
+                        .plugin(name: "GenerateTestGrammarSources",
+                                capability: .buildTool(),
+                                dependencies: ["MakeTestGrammarSources"]),
+                        .testTarget(name: "ASTTests",
+                                    dependencies: ["AST", "TestGrammars"],
+                                    plugins: ["GenerateTestGrammarSources"]),
+                      ]
 )
