@@ -23,7 +23,7 @@ public protocol ParserState<G, Output> {
     associatedtype G : Grammar
     associatedtype Output : ASTNode
     func advance<C : Collection>(_ symb: G.Ctx.State.Symbol?, stream: C, context: inout G.Ctx.State, data: inout IterationData<G, Output>) throws -> Output?  where C.Element == G.Ctx.State.Symbol
-    var state : Int {get}
+    func goto(via rule: String) throws -> any ParserState<G, Output>
 }
 
 public struct Sourcegen {
@@ -48,12 +48,10 @@ import \(module)
 extension \(G.self) {
     public class \(type) : AnyParser {
         public typealias G = \(G.self)
-        let gotos : [String : [Int : (\(type)) -> any ParserState<\(G.self), \(Goal.self)>]]
 
         \(String(rules(parser).joined(separator: "\n")))
 
         init(_ grammar: \(G.self)) {
-            gotos = [\(parser.tables.gotos.map{"\"\($0)\" : [\($1.map{"\($0) : State\($1).init"}.joined(separator: ",\n"))]"}.joined(separator: ",\n"))]
             \(initializer(parser).joined(separator: "\n"))
         }
 
@@ -148,59 +146,78 @@ var state : Int {\(state)}
         throw ASTError.parserDefinition(.noAction(terminal: symb.map(String.init(describing:)) ?? "", state: \(state)))
     }
 
-    \(String(methods(state: state).joined(separator: "\n")))
+    func goto(via rule: String) throws -> any ParserState<G, Output> {
+        \(String(gotos(state: state).joined(separator: "\n")))
+        throw ASTError.parserDefinition(.noGoto(nonTerminal: rule, state: \(state)))
+    }
 }
 """
             }
         }
         
+        func gotos(state: Int) -> [String] {
+            parser.tables.gotos.compactMap {rule, dict in
+                guard let target = dict[state] else {return nil}
+                return
+"""
+if rule == "\(rule)" {
+    return State\(target)(parser: parser)
+}
+"""
+            }
+        }
         
         func actions(state: Int) -> [String] {
-            parser.tables.actions.filter{$1.keys.contains(state)}.sorted(by: {$0.key.map(String.init(describing:)) ?? "" < $1.key.map(String.init(describing:)) ?? ""}).map {symbol, actions in
+            [
 """
-if symb?.rawValue == \(symbol.map{"\"\($0)\""} ?? "nil") {
-    return try \(action(symbol: symbol))(symb, stream: stream, context: &context, data: &data)
+guard let rawValue = symb?.rawValue else {
+    \(method(state: state, symb: nil))
+}
+switch rawValue {
+"""
+            ] +
+            parser.tables.actions.filter{$1.keys.contains(state)}.sorted(by: {$0.key.map(String.init(describing:)) ?? "" < $1.key.map(String.init(describing:)) ?? ""}).compactMap {symbol, actions in
+                symbol.map {symbol in
+"""
+case "\(symbol)":
+    \(method(state: state, symb: symbol))
+
+"""
+                }
+            } +
+            [
+"""
+    default:
+        ()
 }
 """
-            }
+            ]
         }
         
-        func action(symbol: G.Symbol.RawValue?) -> String {
-"""
-on\(symbol.map{String(describing: $0).flatMap(\.unicodeScalars).map(\.value).map(String.init).joined()} ?? "Nil")
-"""
-        }
-        
-        func methods(state: Int) -> [String] {
-            parser.tables.actions.compactMap {symb, dict in
+        func method(state: Int, symb: G.Symbol.RawValue?) -> String {
+            parser.tables.actions[symb].flatMap {dict in
                 guard let actions = dict[state] else {return nil}
                 switch actions {
                 case .shift(let next):
                     return
 """
-func \(action(symbol: symb))<C : Collection>(_ symb: \(G.Symbol.self)?, stream: C, context: inout \(G.self).Ctx.State, data: inout IterationData<G, Output>) throws -> \(Goal.self)? where C.Element == \(G.self).Ctx.State.Symbol {
-    context.advance(symb)
-    data.stateStack.push((context, symb, State\(next)(parser: parser)))
-    return nil
-}
+context.advance(symb)
+data.stateStack.push((context, symb, State\(next)(parser: parser)))
+return nil
 """
                 case .reduce(rule: let ruleName, recognized: let meta):
                     return
 """
-func \(action(symbol: symb))<C : Collection>(_ symb: \(G.Symbol.self)?, stream: C, context: inout \(G.self).Ctx.State, data: inout IterationData<G, Output>) throws -> \(Goal.self)? where C.Element == \(G.self).Ctx.State.Symbol {
-    \(reduce(ruleName, meta).joined(separator: "\n"))
-    return try data.stateStack.peek()!.2.advance(symb, stream: stream, context: &context, data: &data)
-}
+\(reduce(ruleName, meta).joined(separator: "\n"))
+return try data.stateStack.peek()!.2.advance(symb, stream: stream, context: &context, data: &data)
 """
                 case .accept:
-                    return 
+                    return
 """
-func \(action(symbol: symb))<C : Collection>(_ symb: \(G.Symbol.self)?, stream: C, context: inout \(G.self).Ctx.State, data: inout IterationData<G, Output>) throws -> \(Goal.self)? where C.Element == \(G.self).Ctx.State.Symbol {
-    return data.stack.peek() as? \(Goal.self)
-}
+return data.stack.peek() as? \(Goal.self)
 """
                 }
-            }
+            } ?? "return nil"
         }
         
         func reduce(_ ruleName: String, _ meta: String) -> [String] {
@@ -214,8 +231,8 @@ guard let (oldState, _, stateAfter) = data.stateStack.peek() else {
 let ctx = \(G.self).Ctx.span(from: oldState, to: context, stream: stream)
 try data.stack.push(\(theRule).onRecognize(context: ctx))
             
-guard let nextState = parser.gotos["\(meta)"]?[stateAfter.state] else {throw ASTError.parserDefinition(.noGoto(nonTerminal: "\(meta)", state: stateAfter.state))}
-data.stateStack.push((context, symb, nextState(parser)))
+let nextState = try stateAfter.goto(via: "\(meta)")
+data.stateStack.push((context, symb, nextState))
 """
             ]
         }
