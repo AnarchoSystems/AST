@@ -46,8 +46,8 @@ import \(module)
         
 """
 extension \(G.self) {
-    public class \(type) {
-
+    public class \(type) : AnyParser {
+        public typealias G = \(G.self)
         let gotos : [String : [Int : (\(type)) -> any ParserState<\(G.self), \(Goal.self)>]]
 
         \(String(rules(parser).joined(separator: "\n")))

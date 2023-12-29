@@ -5,6 +5,12 @@
 //  Created by Markus Kasperczyk on 29.10.23.
 //
 
+public protocol AnyParser<G, Goal> {
+    associatedtype G : Grammar
+    associatedtype Goal : ASTNode
+    func parse<C : Collection>(_ stream: C) -> Result<Goal, Errors> where C.Element == G.Ctx.State.Symbol
+}
+
 public struct ParserTables<G : Grammar> : Equatable, Codable {
     public let actions : [G.Symbol.RawValue? : [Int : Action]]
     public let gotos : [String : [Int : Int]]
@@ -168,7 +174,7 @@ public struct Errors : Error {
     }
 }
 
-extension Parser {
+extension Parser : AnyParser {
     
     public func parse<C : Collection>(_ stream: C) -> Result<Goal, Errors> where C.Element == G.Ctx.State.Symbol {
          
