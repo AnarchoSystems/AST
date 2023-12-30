@@ -14,6 +14,7 @@ public protocol ExprProperty<Symbol> {
 
 public protocol Injectable {
     func inject(_ any: Any) throws
+    func flush()
 }
 
 public protocol HasTypeName {
@@ -43,6 +44,9 @@ public final class _NonTerminal<Symbol : SymbolProtocol, Meta : ASTNode> : ExprP
         {
             yield &wrapped!
         }
+    }
+    public func flush() {
+        wrapped = nil
     }
     public var projectedValue : _NonTerminal<Symbol, Meta> {self}
     public init() {}

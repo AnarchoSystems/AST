@@ -81,6 +81,8 @@ private extension Parser {
                     let context = G.Ctx.span(from: oldState, to: state, stream: stream)
                     try stack.push(ru._onRecognize(any: context))
                     
+                    flush(ru)
+                    
                     guard let nextState = gotos[metaType]?[stateAfter] else {throw ASTError.parserDefinition(.noGoto(nonTerminal: metaType, state: stateAfter))}
                     stateStack.push((nextState, current, state))
                     
@@ -123,6 +125,17 @@ private extension Parser {
                     try inject(&stack, &stateStack, into: rhs)
                 }
                 
+            }
+        }
+        
+        private func flush(_ any: Any) {
+            for (_, rhs) in Mirror(reflecting: any).children {
+                if let child = rhs as? Injectable {
+                    child.flush()
+                }
+                else {
+                    flush(rhs)
+                }
             }
         }
         

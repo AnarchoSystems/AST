@@ -230,6 +230,8 @@ guard let (oldState, _, stateAfter) = data.stateStack.peek() else {
 }
 let ctx = \(G.self).Ctx.span(from: oldState, to: context, stream: stream)
 try data.stack.push(\(theRule).onRecognize(context: ctx))
+
+\(String(flushChildren(parser.grammar.rules[meta]![ruleName]!, rule: theRule).joined(separator: "\n")))
             
 let nextState = try stateAfter.goto(via: "\(meta)")
 data.stateStack.push((context, symb, nextState))
@@ -270,6 +272,20 @@ try \(rule).$\(label!.dropFirst()).inject(char)
                 }
                 return reduceChildren(child, rule: rule)
             }
+        }
+        
+        func flushChildren(_ any: Any, rule: String) -> [String] {
+            
+            Mirror(reflecting: any).children.flatMap {label, child in
+                
+                if child is Injectable {
+                    return ["\(rule).$\(label!.dropFirst()).flush()"]
+                }
+                
+                return flushChildren(child, rule: rule)
+                
+            }
+            
         }
         
     }
