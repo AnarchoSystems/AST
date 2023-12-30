@@ -48,6 +48,7 @@ import \(module)
 extension \(G.self) {
     public class \(type) : AnyParser {
         public typealias G = \(G.self)
+        public typealias Ctx = \(G.Ctx.self)
 
         \(String(rules(parser).joined(separator: "\n")))
 

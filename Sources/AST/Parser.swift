@@ -5,10 +5,10 @@
 //  Created by Markus Kasperczyk on 29.10.23.
 //
 
-public protocol AnyParser<G, Goal> {
-    associatedtype G : Grammar
+public protocol AnyParser<Ctx, Goal> {
+    associatedtype Ctx : ContextProtocol
     associatedtype Goal : ASTNode
-    func parse<C : Collection>(_ stream: C) -> Result<Goal, Errors> where C.Element == G.Ctx.State.Symbol
+    func parse<C : Collection>(_ stream: C) -> Result<Goal, Errors> where C.Element == Ctx.State.Symbol
 }
 
 public struct ParserTables<G : Grammar> : Equatable, Codable {
@@ -188,6 +188,8 @@ public struct Errors : Error {
 }
 
 extension Parser : AnyParser {
+    
+    public typealias Ctx = G.Ctx
     
     public func parse<C : Collection>(_ stream: C) -> Result<Goal, Errors> where C.Element == G.Ctx.State.Symbol {
          
